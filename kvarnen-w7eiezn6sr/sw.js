@@ -1,29 +1,10 @@
 /* Kvarnen (test) — versionerad cache under GitHub Pages-undermappen. */
-const VERSION = 'kvarnen-test-pages-v1';
-const PRECACHE = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
-  "./stil.css",
-  "./hylla.css",
-  "./hem-overlay.css",
-  "./favicon.svg",
-  "./titlar/drakis-resa/",
-  "./titlar/drakis-resa/index.html",
-  "./titlar/drakis-resa/drakis-resa.html",
-  "./titlar/rostam-och-sohrab/",
-  "./titlar/rostam-och-sohrab/index.html",
-  "./titlar/rostam-och-sohrab/rostam-och-sohrab-bok2.html",
-  "./titlar/det-gyllene-manuskriptet/",
-  "./titlar/det-gyllene-manuskriptet/index.html",
-  "./titlar/det-gyllene-manuskriptet/det-gyllene-manuskriptet-bok2.html"
-];
+const VERSION = 'kvarnen-test-pages-v2';
+const PRECACHE = ["./", "./index.html", "./manifest.webmanifest", "./stil.css", "./hylla.css", "./hem-overlay.css", "./favicon.svg", "./titlar/drakis-resa/", "./titlar/rostam-och-sohrab/", "./titlar/rostam-och-sohrab/bok/", "./titlar/det-gyllene-manuskriptet/", "./sw.js", "./titlar/det-gyllene-manuskriptet/det-gyllene-manuskriptet-bok2.html", "./titlar/det-gyllene-manuskriptet/index.html", "./titlar/drakis-resa/drakis-resa.html", "./titlar/drakis-resa/index.html", "./titlar/rostam-och-sohrab/bok/bok.bundle.js", "./titlar/rostam-och-sohrab/bok/css/bok.css", "./titlar/rostam-och-sohrab/bok/delat/ljud/bank.json", "./titlar/rostam-och-sohrab/bok/delat/palett.css", "./titlar/rostam-och-sohrab/bok/delat/stil.css", "./titlar/rostam-och-sohrab/bok/delat/typsnitt/OFL-CormorantGaramond.txt", "./titlar/rostam-och-sohrab/bok/delat/typsnitt/OFL-NotoNastaliqUrdu.txt", "./titlar/rostam-och-sohrab/bok/delat/typsnitt/TYPSNITT.md", "./titlar/rostam-och-sohrab/bok/favicon.svg", "./titlar/rostam-och-sohrab/bok/index.html", "./titlar/rostam-och-sohrab/bok/konst-data.js", "./titlar/rostam-och-sohrab/bok/studio/studiointro.js", "./titlar/rostam-och-sohrab/index.html"];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(VERSION)
-      .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
+    caches.open(VERSION).then((cache) => cache.addAll(PRECACHE))
   );
 });
 
@@ -33,6 +14,12 @@ self.addEventListener('activate', (event) => {
     await Promise.all(keys.filter((key) => key !== VERSION).map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.typ === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {

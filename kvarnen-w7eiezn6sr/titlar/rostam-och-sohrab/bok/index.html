@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#12182e">
+  <title>Rostam och Sohrab – Shahnameh – Konungaboken</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./delat/palett.css">
+  <link rel="stylesheet" href="./delat/stil.css">
+  <link rel="stylesheet" href="./css/bok.css">
+</head>
+<body>
+  <div class="vrid-skarm" data-testid="vrid-skarm">
+    <div>
+      <div class="vrid-ikon" aria-hidden="true"></div>
+      <p>Vrid telefonen</p>
+    </div>
+  </div>
+
+  <button type="button" class="hoppa-intro" id="hoppa-intro" data-testid="hoppa-intro">Hoppa över</button>
+
+  <div class="app-liggande">
+    <header class="topplist">
+      <h1>Rostam och Sohrab <span class="kicker">Shahnameh – Konungaboken</span></h1>
+      <div class="mixer" data-testid="mixer">
+        <label>Eld <input id="vol-ljud" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+        <label>Allt <input id="vol-allt" type="range" min="0" max="1" step="0.01" value="0.85"></label>
+      </div>
+      <div class="spar-rad">
+        <span class="spar-status" id="spar-status" data-testid="spar-status"></span>
+        <button type="button" class="primar" id="knapp-spara" data-testid="spara">Spara</button>
+        <button type="button" id="knapp-helskarm" data-testid="helskarm">Helskärm</button>
+      </div>
+    </header>
+
+    <main class="bok-ram">
+      <div class="bok-skal">
+        <div id="bok" class="bok-varld" data-testid="bok"></div>
+        <canvas id="damm" class="partikel-duk" aria-hidden="true"></canvas>
+        <section class="ark" id="ark-namn" hidden data-testid="ark-namn">
+          <h2>Vid elden</h2>
+          <p>Vad ska berättaren kalla dig, som sitter här i natt?</p>
+          <input id="namn-falt" type="text" maxlength="40" autocomplete="given-name" placeholder="Bara förnamnet räcker">
+          <div class="rad">
+            <button type="button" class="primar" id="knapp-namn">Säg det till elden</button>
+          </div>
+        </section>
+        <section class="ark" id="ark-reflektion" hidden data-testid="ark-reflektion">
+          <h2>Din bok</h2>
+          <p id="reflektion-fraga"></p>
+          <p class="notis" id="reflektion-hint"></p>
+          <textarea id="reflektion-falt" maxlength="600"></textarea>
+          <div class="rad">
+            <button type="button" class="primar" id="knapp-reflektion">Skriv i Din bok</button>
+          </div>
+        </section>
+        <section class="ark" id="ark-val" hidden data-testid="ark-val">
+          <h2>Ett val</h2>
+          <p id="val-fraga"></p>
+          <div class="val" id="val-val"></div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="fotlist">
+      <div>
+        <button type="button" id="knapp-fortsatt" data-testid="fortsatt">Fortsätt</button>
+        <button type="button" id="knapp-nytt" data-testid="nytt">Nytt</button>
+      </div>
+      <span class="natt-namn" id="natt-namn" data-testid="natt-namn"></span>
+      <p class="hint">Dra i bladets ytterkant. Liggande läge.</p>
+    </footer>
+  </div>
+
+  <div id="oppnar" hidden data-testid="oppnar">
+    <div class="oppnar-scen">
+      <img data-lag="bord" alt="">
+      <img data-lag="eld" alt="">
+      <img data-lag="parm" alt="">
+      <svg class="parallax-ram" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="2.5" y="3" width="95" height="94" fill="none" stroke="#e2b657" stroke-width="0.7" opacity="0.7"/>
+      </svg>
+    </div>
+    <button type="button" class="hoppa" id="hoppa-oppnar">Hoppa över</button>
+  </div>
+
+  <div id="ritual" hidden data-testid="ritual">
+    <div class="ritual-scen">
+      <img alt="">
+      <p class="ritual-ord">Berättaren strör sand över den sista glöden.</p>
+    </div>
+    <button type="button" class="hoppa" id="hoppa-ritual">Fortsätt</button>
+  </div>
+
+  <div class="startslöja" id="start" data-testid="start">
+    <div>
+      <h2>Rostam och Sohrab</h2>
+      <p>Det är sent, och lägret har tystnat. Sätt dig vid elden. Berättelsen behöver sju nätter, och du får inte rädda slutet.</p>
+      <button type="button" class="primar" id="knapp-borja" data-testid="borja">Sätt dig vid elden</button>
+    </div>
+  </div>
+
+  <script src="./studio/studiointro.js"></script>
+  <script src="./konst-data.js"></script>
+  <script src="./bok.bundle.js"></script>
+</body>
+</html>
