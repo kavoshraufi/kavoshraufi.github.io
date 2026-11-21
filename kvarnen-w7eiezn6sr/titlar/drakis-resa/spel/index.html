@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b1020">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <title>Drakis resa – referensspel</title>
+  <link rel="stylesheet" href="./delat/palett-endesga.css">
+  <link rel="stylesheet" href="./delat/stil.css">
+  <link rel="stylesheet" href="./css/spel.css">
+</head>
+<body>
+  <div class="vrid-skarm" data-testid="vrid-skarm">
+    <div>
+      <div class="vrid-ikon" aria-hidden="true"></div>
+      <p>Vrid telefonen</p>
+    </div>
+  </div>
+
+  <button type="button" class="hoppa-intro" id="hoppa-intro" data-testid="hoppa-intro">Hoppa över</button>
+
+  <div class="app-liggande">
+    <header class="topplist">
+      <h1>Drakis resa <span class="kicker">Ett andetag i taget</span></h1>
+      <div class="mixer" data-testid="mixer">
+        <label>Musik <input id="vol-musik" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+        <label>Ljud <input id="vol-sfx" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+        <label>Allt <input id="vol-allt" type="range" min="0" max="1" step="0.01" value="0.85"></label>
+      </div>
+      <div class="spar-rad">
+        <span class="spar-status" id="spar-status" data-testid="spar-status"></span>
+        <button type="button" class="primar" id="knapp-spara" data-testid="spara">Spara</button>
+        <button type="button" id="knapp-fortsatt" data-testid="fortsatt">Fortsätt</button>
+        <button type="button" id="knapp-nytt" data-testid="nytt">Nytt</button>
+        <button type="button" id="knapp-helskarm" data-testid="helskarm">Helskärm</button>
+      </div>
+    </header>
+  </div>
+
+  <script src="./studio/studiointro.js"></script>
+  <script type="module" src="./js/spel.js"></script>
+  <script>
+    (function () {
+      var b = document.getElementById('hoppa-intro');
+      if (!b) return;
+      b.addEventListener('click', function () {
+        if (window.StudioIntro && window.StudioIntro.skip) window.StudioIntro.skip();
+        else {
+          var root = document.getElementById('si-root');
+          if (root) root.remove();
+          document.body.classList.remove('studio-igang');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
