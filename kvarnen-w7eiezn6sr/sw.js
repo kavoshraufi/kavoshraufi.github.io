@@ -1,7 +1,7 @@
 /* Kvarnen (test) — versionerad cache under GitHub Pages-undermappen. */
 importScripts('./version.js');
 const VERSION = KVARNEN_CACHE;
-const KVARNEN_SW_STAMP = '1.6'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
+const KVARNEN_SW_STAMP = '1.7'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
 const PRECACHE = [
   "./",
   "./index.html",
@@ -65,18 +65,27 @@ const PRECACHE = [
   "./titlar/drakis-resa/spel/ljud/bank.json",
   "./titlar/drakis-resa/spel/studio/studiointro.js",
   "./titlar/nila-norin/index.html",
-  "./titlar/nila-norin/spel/FIGURER.md",
-  "./titlar/nila-norin/spel/css/spel.css",
+  "./titlar/nila-norin/spel/css/game.css",
   "./titlar/nila-norin/spel/delat/ljudmotor.js",
   "./titlar/nila-norin/spel/delat/partiklar.js",
-  "./titlar/nila-norin/spel/delat/skarmovergangar.js",
   "./titlar/nila-norin/spel/delat/spar.js",
-  "./titlar/nila-norin/spel/delat/stil.css",
   "./titlar/nila-norin/spel/favicon.svg",
   "./titlar/nila-norin/spel/index.html",
-  "./titlar/nila-norin/spel/js/spel.js",
+  "./titlar/nila-norin/spel/js/core.js",
+  "./titlar/nila-norin/spel/js/levels/L01-rescue.js",
+  "./titlar/nila-norin/spel/js/levels/L02-brook.js",
+  "./titlar/nila-norin/spel/js/levels/L03-garden.js",
+  "./titlar/nila-norin/spel/js/levels/L04-sort.js",
+  "./titlar/nila-norin/spel/js/levels/L05-music.js",
+  "./titlar/nila-norin/spel/js/levels/L06-clouds.js",
+  "./titlar/nila-norin/spel/js/levels/L07-bridge.js",
+  "./titlar/nila-norin/spel/js/levels/L08-stars.js",
+  "./titlar/nila-norin/spel/js/levels/L09-treasure.js",
+  "./titlar/nila-norin/spel/js/levels/L10-bakery.js",
+  "./titlar/nila-norin/spel/js/main.js",
+  "./titlar/nila-norin/spel/js/map.js",
+  "./titlar/nila-norin/spel/konst/sprites.json",
   "./titlar/nila-norin/spel/ljud/bank.json",
-  "./titlar/nila-norin/spel/studio/studiointro.js",
   "./titlar/rostam-och-sohrab/bok/bok.bundle.js",
   "./titlar/rostam-och-sohrab/bok/css/bok.css",
   "./titlar/rostam-och-sohrab/bok/delat/ljud/bank.json",

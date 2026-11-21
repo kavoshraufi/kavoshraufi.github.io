@@ -2,6 +2,10 @@
 
 Appens synliga nummer och service workerns cache-namn kommer från samma konstant i `kvarnen-w7eiezn6sr/version.js` (`KVARNEN_APP_VERSION`). En utgåva 1.4 blir cache-namnet `kvarnen-test-pages-v4`.
 
+## 1.7
+
+Nila & Norin byts ut mot den ombyggda versionen Äventyrsdalen. Spelet har karta, skattbok, föräldrameny och tio banor med olika lekar: Djurräddningen, Bäckplask, Trädgårdsmagin, Sorteringsstugan, Musikgläntan, Molnäventyret, Brobyggaren, Stjärnhimlen, Skattjakten och Lilla Bagaren.
+
 ## 1.6
 
 Nila & Norin läggs till i hyllan som egen titel (tillfälliga sagofigurer, se spelets FIGURER.md). Tre testvarianter av Rostam och Sohrab, natt 1, läggs också in: Bok A – Ljus bok, Bok B – Bildbok och Bok C – Klassisk enkel.
