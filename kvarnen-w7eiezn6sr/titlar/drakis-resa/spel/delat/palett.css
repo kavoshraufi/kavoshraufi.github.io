@@ -1,0 +1,19 @@
+/* Shahnameh-palett för KunskapsKvarnen.
+   Se STIL-SHAHNAMEH.md. Ändra inte hex utan Kavoshs ja. */
+
+:root {
+  --shah-indigo: #12182e;
+  --shah-turkos: #2a6f78;
+  --shah-guld: #e2b657;
+  --shah-karmosin: #8a2430;
+  --shah-sand: #e8d7b0;
+  --shah-barnsten: #e9a55b;
+
+  --shah-yta: var(--shah-indigo);
+  --shah-text: var(--shah-sand);
+  --shah-text-mjuk: color-mix(in srgb, var(--shah-sand) 78%, var(--shah-indigo));
+  --shah-accent: var(--shah-guld);
+  --shah-vara: var(--shah-karmosin);
+  --shah-vatten: var(--shah-turkos);
+  --shah-eld: var(--shah-barnsten);
+}
