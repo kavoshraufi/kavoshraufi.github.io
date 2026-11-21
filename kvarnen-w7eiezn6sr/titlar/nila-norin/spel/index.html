@@ -1,60 +1,97 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="sv">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#f4e6c4">
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <title>Nila & Norins äventyr – referensspel</title>
-  <link rel="stylesheet" href="./delat/stil.css">
-  <link rel="stylesheet" href="./css/spel.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Nila &amp; Norin — Äventyrsdalen</title>
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="stylesheet" href="./css/game.css">
 </head>
 <body>
-  <div class="vrid-skarm" data-testid="vrid-skarm" hidden>
-    <div>
-      <div class="vrid-ikon" aria-hidden="true"></div>
-      <p>Vrid telefonen</p>
+<div id="stage">
+  <canvas id="c" aria-label="Nila och Norin"></canvas>
+
+  <!-- Minimal hörn-HUD som aldrig skymmer spelplanen -->
+  <div class="hud-corner hud-tl">
+    <button type="button" id="btnMap" class="icon-btn hidden" aria-label="Tillbaka till kartan" title="Kartan">
+      <span aria-hidden="true">🗺️</span>
+    </button>
+    <div class="sister-switch" role="group" aria-label="Välj syster">
+      <button type="button" class="sis-btn is-on" data-sis="nila" aria-label="Spela som Nila">
+        <canvas class="sis-face" width="52" height="52"></canvas>
+        <span>Nila</span>
+      </button>
+      <button type="button" class="sis-btn" data-sis="norin" aria-label="Spela som Norin">
+        <canvas class="sis-face" width="52" height="52"></canvas>
+        <span>Norin</span>
+      </button>
+    </div>
+    <div id="starBadge" class="star-pill" aria-label="Samlade stjärnor">
+      <span class="star-ico" aria-hidden="true">⭐</span>
+      <span id="starCount">0 / 30</span>
     </div>
   </div>
 
-  <button type="button" class="hoppa-intro" id="hoppa-intro" data-testid="hoppa-intro">Hoppa över</button>
+  <div class="hud-corner hud-tr">
+    <button type="button" id="btnBook" class="icon-btn" aria-label="Skattboken" title="Skattboken">
+      <span aria-hidden="true">📖</span>
+    </button>
+    <button type="button" id="btnMute" class="icon-btn" aria-label="Ljud av eller på" title="Ljud">
+      <span id="muteIco" aria-hidden="true">🔊</span>
+    </button>
+    <button type="button" id="btnFull" class="icon-btn" aria-label="Helskärm" title="Helskärm">
+      <span aria-hidden="true">⛶</span>
+    </button>
+    <button type="button" id="btnParent" class="icon-btn" aria-label="Föräldrameny" title="Inställningar">
+      <span aria-hidden="true">⚙</span>
+    </button>
+  </div>
 
-  <header class="topplist foralder-list" data-testid="foralder-list">
-    <h1>Nila &amp; Norin <span class="kicker">Ett familjespel</span></h1>
-    <div class="mixer" data-testid="mixer">
-      <label>Musik <input id="vol-musik" type="range" min="0" max="1" step="0.01" value="0.8"></label>
-      <label>Ljud <input id="vol-sfx" type="range" min="0" max="1" step="0.01" value="0.8"></label>
-      <label>Allt <input id="vol-allt" type="range" min="0" max="1" step="0.01" value="0.85"></label>
+  <!-- Nedre ban-progress / vinst-rad -->
+  <div class="hud-bottom">
+    <div id="levelTitle" class="level-pill hidden"></div>
+    <div id="progressBar" class="progress-bar hidden"></div>
+    <div id="winBar" class="win-bar hidden">
+      <button type="button" id="btnNextLevel" class="win-btn win-primary">➜ Nästa bana</button>
+      <button type="button" id="btnReplay" class="win-btn win-soft">↻ Spela igen</button>
+      <button type="button" id="btnWinMap" class="win-btn win-soft">🗺️ Kartan</button>
     </div>
-    <div class="spar-rad">
-      <span class="spar-status" id="spar-status" data-testid="spar-status"></span>
-      <button type="button" class="primar" id="knapp-spara" data-testid="spara">Spara</button>
-      <button type="button" id="knapp-fortsatt" data-testid="fortsatt">Fortsätt</button>
-      <button type="button" id="knapp-nytt" data-testid="nytt">Nytt</button>
-      <button type="button" id="knapp-helskarm" data-testid="helskarm">Helskärm</button>
-      <button type="button" id="knapp-oversikt" data-testid="oversikt">Översikt</button>
+  </div>
+</div>
+
+<!-- Levande skattbok (interaktiva belöningar från avklarade banor) -->
+<div id="bookModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Systrarnas skattbok">
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <h2>📖 Systrarnas skattbok</h2>
+      <button type="button" id="btnCloseBook" class="close-btn" aria-label="Stäng">✕</button>
     </div>
-  </header>
+    <p class="modal-lead">Tryck på dina minnen för att leka med dem!</p>
+    <div id="bookGrid" class="book-grid"></div>
+  </div>
+</div>
 
-  <canvas id="c"></canvas>
+<!-- Föräldra- och inställningsmeny -->
+<div id="parentModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Föräldrameny">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Nila &amp; Norin — Föräldrameny</h2>
+      <button type="button" id="btnCloseParent" class="close-btn" aria-label="Stäng">✕</button>
+    </div>
+    <p class="modal-lead" id="parentStats"></p>
+    <div class="mixer">
+      <label><span>Allt ljud</span><input type="range" id="volMaster" min="0" max="1" step="0.05" value="0.85"></label>
+      <label><span>Ljudeffekter</span><input type="range" id="volSfx" min="0" max="1" step="0.05" value="0.85"></label>
+      <label><span>Gränssnitt</span><input type="range" id="volUi" min="0" max="1" step="0.05" value="0.8"></label>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="btnUnlockAll" class="win-btn win-soft">🔓 Lås upp alla banor</button>
+      <button type="button" id="btnResetSave" class="win-btn win-soft">↻ Nollställ framsteg</button>
+      <button type="button" id="btnDoneParent" class="win-btn win-primary">Tillbaka</button>
+    </div>
+  </div>
+</div>
 
-  <script src="./studio/studiointro.js"></script>
-  <script type="module" src="./js/spel.js"></script>
-  <script>
-    (function () {
-      var b = document.getElementById('hoppa-intro');
-      if (!b) return;
-      b.addEventListener('click', function () {
-        if (window.StudioIntro && window.StudioIntro.skip) window.StudioIntro.skip();
-        else {
-          var root = document.getElementById('si-root');
-          if (root) root.remove();
-          document.body.classList.remove('studio-igang');
-        }
-      });
-    })();
-  </script>
+<script type="module" src="./js/main.js"></script>
 </body>
 </html>
