@@ -1,0 +1,12 @@
+Cormorant Garamond
+Copyright 2015 The Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+See https://openfontlicense.org/open-font-license-official-text/
+The license is also included with Noto Nastaliq Urdu in OFL-NotoNastaliqUrdu.txt
+in this folder (SIL Open Font License 1.1).
+
+Reserved Font Name: Cormorant.
+
+A subset (weight ~500, Latin and Swedish characters used in this book) is
+embedded in the standalone HTML as CormorantGaramond-subset.woff2.
