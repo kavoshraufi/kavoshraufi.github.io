@@ -1,0 +1,104 @@
+/* Variant C – Klassisk enkel: tvåsidigt uppslag, ljust, utan tunga ramar, kort 3D-lutning. */
+.app {
+  position: fixed;
+  inset: 0;
+  background: #eadfcb;
+}
+.scen {
+  position: absolute;
+  inset: calc(var(--topp-h) + var(--safe-top)) 1.2rem calc(var(--fot-h) + var(--safe-bottom));
+  perspective: 1600px;
+}
+.uppslag {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--paper);
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: center center;
+  transition: opacity 380ms ease, transform 380ms ease;
+}
+.uppslag.synlig {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  z-index: 2;
+}
+.uppslag.ut-hoger {
+  opacity: 0;
+  transform: rotateY(-11deg);
+  transform-origin: left center;
+}
+.uppslag.ut-vanster {
+  opacity: 0;
+  transform: rotateY(11deg);
+  transform-origin: right center;
+}
+.uppslag.in-hoger {
+  transform: rotateY(11deg);
+  transform-origin: right center;
+}
+.uppslag.in-vanster {
+  transform: rotateY(-11deg);
+  transform-origin: left center;
+}
+
+.blad {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: auto;
+  padding: clamp(0.75rem, 2.6vw, 1.6rem) clamp(1.1rem, 3.2vw, 2rem);
+}
+.blad.vanster { padding-right: clamp(1rem, 2.6vw, 1.8rem); }
+.blad.hoger { padding-left: clamp(1rem, 2.6vw, 1.8rem); }
+.blad.helbild { padding: 0; }
+.blad.helbild img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* En mycket tunn ränna, ingen guldram och ingen bordsskiva. */
+.ran {
+  position: absolute;
+  top: 8%;
+  bottom: 8%;
+  left: 50%;
+  width: 1px;
+  background: var(--linje);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.svepzon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16%;
+  z-index: 5;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+}
+.svepzon.fore { left: 0; }
+.svepzon.nasta { right: 0; }
+
+.avslut .fotnot { font-size: 1.08em; color: var(--ink); }
+
+@media (max-width: 700px) {
+  :root { --brod-storlek: 18px; }
+  .scen { inset: calc(var(--topp-h) + var(--safe-top)) 0.5rem calc(var(--fot-h) + var(--safe-bottom)); }
+  .blad { padding: 0.7rem 0.8rem; }
+}
+
+.blad.avslut { justify-content: center; }
+
+/* Plats för Kvarnens Hem-knapp i testappen. */
+.topp { padding-left: 5.6rem; }

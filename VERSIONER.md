@@ -2,6 +2,10 @@
 
 Appens synliga nummer och service workerns cache-namn kommer från samma konstant i `kvarnen-w7eiezn6sr/version.js` (`KVARNEN_APP_VERSION`). En utgåva 1.4 blir cache-namnet `kvarnen-test-pages-v4`.
 
+## 1.6
+
+Nila & Norin läggs till i hyllan som egen titel (tillfälliga sagofigurer, se spelets FIGURER.md). Tre testvarianter av Rostam och Sohrab, natt 1, läggs också in: Bok A – Ljus bok, Bok B – Bildbok och Bok C – Klassisk enkel.
+
 ## 1.5
 
 Rättar färger och storlek i Drakis resa. Den förra referensen hade låst all grafik till 32 färger (Endesga), vilket gav fläckiga, felaktiga färger, och många sprites var uppskalade cirka 4 gånger så att Drakis blev för stor i förhållande till banan. Originalgrafiken med rätt färger och storlek är tillbaka.
