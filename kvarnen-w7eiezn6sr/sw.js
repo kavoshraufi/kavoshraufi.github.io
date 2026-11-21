@@ -1,5 +1,7 @@
 /* Kvarnen (test) — versionerad cache under GitHub Pages-undermappen. */
-const VERSION = 'kvarnen-test-pages-v4';
+importScripts('./version.js');
+const VERSION = KVARNEN_CACHE;
+const KVARNEN_SW_STAMP = '1.4'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
 const PRECACHE = [
   "./",
   "./index.html",
@@ -9,6 +11,7 @@ const PRECACHE = [
   "./hem-overlay.css",
   "./favicon.svg",
   "./sw-register.js",
+  "./version.js",
   "./titlar/drakis-resa/",
   "./titlar/drakis-resa/spel/",
   "./titlar/rostam-och-sohrab/",
@@ -48,9 +51,16 @@ const PRECACHE = [
   "./titlar/rostam-och-sohrab/index.html"
 ];
 
+function berättaVersion(klienter) {
+  klienter.forEach((c) => c.postMessage({ typ: 'NY_VERSION', nummer: KVARNEN_APP_VERSION }));
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches.open(VERSION).then((cache) => cache.addAll(PRECACHE))
+      .then(() => self.clients.matchAll({ includeUncontrolled: true }))
+      .then((klienter) => { berättaVersion(klienter); })
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -59,12 +69,19 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((key) => key !== VERSION).map((key) => caches.delete(key)));
     await self.clients.claim();
+    berättaVersion(await self.clients.matchAll());
   })());
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.typ === 'SKIP_WAITING') {
+  if (!event.data) return;
+  if (event.data.typ === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data.typ === 'VERSION?') {
+    const svar = { typ: 'VERSION', nummer: KVARNEN_APP_VERSION };
+    if (event.ports && event.ports[0]) event.ports[0].postMessage(svar);
+    else if (event.source) event.source.postMessage(svar);
   }
 });
 
