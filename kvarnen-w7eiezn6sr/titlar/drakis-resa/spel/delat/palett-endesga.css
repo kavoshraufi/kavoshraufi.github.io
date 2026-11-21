@@ -1,0 +1,35 @@
+/* Endesga 32 (ENDESGA, CC0 på Lospec). Fast palett för Drakis resa. */
+:root {
+  --eg-tegel: #be4a2f;
+  --eg-lera: #d77643;
+  --eg-sand: #ead4aa;
+  --eg-ockra: #e4a672;
+  --eg-brun: #b86f50;
+  --eg-mull: #733e39;
+  --eg-skugga: #3e2731;
+  --eg-vin: #a22633;
+  --eg-rod: #e43b44;
+  --eg-apelsin: #f77622;
+  --eg-guld: #feae34;
+  --eg-gul: #fee761;
+  --eg-gras: #63c74d;
+  --eg-mos: #3e8948;
+  --eg-skog: #265c42;
+  --eg-barr: #193c3e;
+  --eg-hav: #124e89;
+  --eg-himmel: #0099db;
+  --eg-is: #2ce8f5;
+  --eg-vit: #ffffff;
+  --eg-dimma: #c0cbdc;
+  --eg-sten: #8b9bb4;
+  --eg-skiffer: #5a6988;
+  --eg-natt: #3a4466;
+  --eg-djup: #262b44;
+  --eg-svart: #181425;
+  --eg-signal: #ff0044;
+  --eg-lila: #68386c;
+  --eg-rosa: #b55088;
+  --eg-blekrosa: #f6757a;
+  --eg-hud: #e8b796;
+  --eg-hudmork: #c28569;
+}
