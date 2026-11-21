@@ -1,5 +1,5 @@
 /* Kvarnen (test) — versionerad cache under GitHub Pages-undermappen. */
-const VERSION = 'kvarnen-test-pages-v3';
+const VERSION = 'kvarnen-test-pages-v4';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const PRECACHE = [
   "./hylla.css",
   "./hem-overlay.css",
   "./favicon.svg",
+  "./sw-register.js",
   "./titlar/drakis-resa/",
   "./titlar/drakis-resa/spel/",
   "./titlar/rostam-och-sohrab/",
@@ -49,7 +50,7 @@ const PRECACHE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(PRECACHE))
+    caches.open(VERSION).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
   );
 });
 
@@ -67,6 +68,46 @@ self.addEventListener('message', (event) => {
   }
 });
 
+function arHtml(request, url) {
+  if (request.mode === 'navigate' || request.destination === 'document') return true;
+  const path = url.pathname;
+  return path.endsWith('.html') || path.endsWith('/');
+}
+
+async function natverkForst(request, cache) {
+  try {
+    const response = await fetch(request, { cache: 'no-store' });
+    if (response && response.ok) {
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (err) {
+    const cached = await cache.match(request, { ignoreSearch: true });
+    if (cached) return cached;
+    if (request.mode === 'navigate') {
+      const fallback = await cache.match('./index.html');
+      if (fallback) return fallback;
+    }
+    throw err;
+  }
+}
+
+async function staleWhileRevalidate(request, cache) {
+  const cached = await cache.match(request, { ignoreSearch: true });
+  const natverk = fetch(request).then((response) => {
+    if (response && response.ok) {
+      cache.put(request, response.clone());
+    }
+    return response;
+  }).catch(() => undefined);
+  if (cached) {
+    return cached;
+  }
+  const response = await natverk;
+  if (response) return response;
+  throw new Error('Nätverk och cache misslyckades');
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
@@ -74,20 +115,9 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
-    const cached = await cache.match(event.request, { ignoreSearch: true });
-    if (cached) return cached;
-    try {
-      const response = await fetch(event.request);
-      if (response && response.ok) {
-        cache.put(event.request, response.clone());
-      }
-      return response;
-    } catch (err) {
-      if (event.request.mode === 'navigate') {
-        const fallback = await cache.match('./index.html');
-        if (fallback) return fallback;
-      }
-      throw err;
+    if (arHtml(event.request, url)) {
+      return natverkForst(event.request, cache);
     }
+    return staleWhileRevalidate(event.request, cache);
   })());
 });

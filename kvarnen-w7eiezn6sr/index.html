@@ -79,37 +79,9 @@
     </footer>
   </div>
 
+  <script src="./sw-register.js" data-sw="./sw.js" data-scope="./"></script>
   <script>
     (function () {
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./sw.js", { scope: "./" }).then(function (reg) {
-          function visa(worker) {
-            if (!navigator.serviceWorker.controller) return;
-            var ruta = document.getElementById("ny-version");
-            if (!ruta) return;
-            ruta.hidden = false;
-            ruta.classList.add("synlig");
-            var knapp = document.getElementById("ny-version-knapp");
-            if (knapp) {
-              knapp.onclick = function () {
-                worker.postMessage({ typ: "SKIP_WAITING" });
-              };
-            }
-          }
-          if (reg.waiting) visa(reg.waiting);
-          reg.addEventListener("updatefound", function () {
-            var w = reg.installing;
-            if (!w) return;
-            w.addEventListener("statechange", function () {
-              if (w.state === "installed") visa(w);
-            });
-          });
-        }).catch(function () {});
-        navigator.serviceWorker.addEventListener("controllerchange", function () {
-          window.location.reload();
-        });
-      }
-
       var standalone = window.matchMedia("(display-mode: standalone)").matches
         || window.matchMedia("(display-mode: fullscreen)").matches
         || window.navigator.standalone === true;
