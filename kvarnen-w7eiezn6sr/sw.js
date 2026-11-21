@@ -1,7 +1,7 @@
 /* Kvarnen (test) — versionerad cache under GitHub Pages-undermappen. */
 importScripts('./version.js');
 const VERSION = KVARNEN_CACHE;
-const KVARNEN_SW_STAMP = '1.4'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
+const KVARNEN_SW_STAMP = '1.5'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
 const PRECACHE = [
   "./",
   "./index.html",
