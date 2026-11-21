@@ -185,8 +185,10 @@ html, body {
 .win-bar {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
+  width: max-content;
+  max-width: calc(100vw - 16px);
 }
 
 .win-btn {
@@ -199,6 +201,17 @@ html, body {
   cursor: pointer;
   box-shadow: var(--shadow);
   transition: transform 120ms ease;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 700px) {
+  .win-bar { gap: 6px; }
+  .win-btn {
+    min-height: 40px;
+    padding: 7px 11px;
+    font-size: 13px;
+  }
 }
 .win-btn:active { transform: scale(0.95); }
 .win-primary {
@@ -309,5 +322,5 @@ html, body {
   .prog-dot { width: 28px; height: 28px; font-size: 14px; }
 }
 
-/* Plats för Kvarnens Hem-knapp i testappen (överlag i ramen). */
+/* Hem-knappen i testappens ram ska inte täcka systerbytet. */
 .hud-tl { left: calc(5.5rem + var(--safe-left)); }

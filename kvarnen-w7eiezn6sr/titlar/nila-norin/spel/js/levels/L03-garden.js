@@ -1,7 +1,7 @@
 import {
   TAU, clamp, lerp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
-  drawWateringCan, playSfx, playNote,
+  drawWateringCan, playSfx, playNote, bgPoint,
 } from '../core.js';
 
 export const level03 = {
@@ -50,28 +50,56 @@ export const level03 = {
     function layout(W, H) {
       const pr = api.playRect(W, H);
       const land = W >= H;
-      const bedXs = land ? [0.22, 0.41, 0.60, 0.79] : [0.24, 0.76, 0.24, 0.76];
-      const bedYs = land ? [0.56, 0.56, 0.56, 0.56] : [0.44, 0.44, 0.66, 0.66];
-      s.beds.forEach((b, i) => {
-        b.x = pr.x + pr.w * bedXs[i];
-        b.y = pr.y + pr.h * bedYs[i];
-      });
-      s.packets.forEach((p, i) => {
-        p.homeX = pr.x + pr.w * (land ? (0.24 + i * 0.13) : (0.16 + i * 0.18));
-        p.homeY = pr.y + pr.h * (land ? 0.24 : 0.22);
-        if (!s.dragKind || s.dragKind.packet !== p) {
-          p.x = p.homeX;
-          p.y = p.homeY;
+      if (land) {
+        // Bäddar, påsar och kanna enbart som interaktiva objekt på den rena gräsmattan, till höger om stenstigen.
+        const bedPts = [[360, 336], [460, 318], [560, 318], [650, 336]];
+        s.beds.forEach((b, i) => {
+          const p = bgPoint(W, H, 'tradgard', bedPts[i][0], bedPts[i][1]);
+          b.x = p.x; b.y = p.y;
+        });
+        const pktXs = [360, 430, 500, 570];
+        s.packets.forEach((p, i) => {
+          const q = bgPoint(W, H, 'tradgard', pktXs[i], 258);
+          p.homeX = q.x; p.homeY = q.y;
+          if (!s.dragKind || s.dragKind.packet !== p) {
+            p.x = p.homeX;
+            p.y = p.homeY;
+          }
+        });
+        const ch = bgPoint(W, H, 'tradgard', 655, 248);
+        s.canHomeX = ch.x; s.canHomeY = ch.y;
+        if (!s.canHeld) {
+          s.canX = s.canHomeX;
+          s.canY = s.canHomeY;
         }
-      });
-      s.canHomeX = pr.x + pr.w * (land ? 0.80 : 0.84);
-      s.canHomeY = pr.y + pr.h * (land ? 0.25 : 0.22);
-      if (!s.canHeld) {
-        s.canX = s.canHomeX;
-        s.canY = s.canHomeY;
+        const hp = bgPoint(W, H, 'tradgard', 90, 368);
+        const bp = bgPoint(W, H, 'tradgard', 690, 368);
+        s.heroPos = [hp.x, hp.y];
+        s.buddyPos = [bp.x, bp.y];
+      } else {
+        const bedXs = [0.24, 0.76, 0.24, 0.76];
+        const bedYs = [0.42, 0.42, 0.62, 0.62];
+        s.beds.forEach((b, i) => {
+          b.x = pr.x + pr.w * bedXs[i];
+          b.y = pr.y + pr.h * bedYs[i];
+        });
+        s.packets.forEach((p, i) => {
+          p.homeX = pr.x + pr.w * (0.16 + i * 0.18);
+          p.homeY = pr.y + pr.h * 0.22;
+          if (!s.dragKind || s.dragKind.packet !== p) {
+            p.x = p.homeX;
+            p.y = p.homeY;
+          }
+        });
+        s.canHomeX = pr.x + pr.w * 0.84;
+        s.canHomeY = pr.y + pr.h * 0.22;
+        if (!s.canHeld) {
+          s.canX = s.canHomeX;
+          s.canY = s.canHomeY;
+        }
+        s.heroPos = [pr.x + pr.w * 0.17, pr.y + pr.h * 0.88];
+        s.buddyPos = [pr.x + pr.w * 0.83, pr.y + pr.h * 0.88];
       }
-      s.heroPos = [pr.x + pr.w * (land ? 0.11 : 0.17), pr.y + pr.h * (land ? 0.84 : 0.88)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.90 : 0.83), pr.y + pr.h * (land ? 0.84 : 0.88)];
       if (!s.inited) {
         s.butterfly.x = pr.x + pr.w * 0.5;
         s.butterfly.y = pr.y + pr.h * 0.35;

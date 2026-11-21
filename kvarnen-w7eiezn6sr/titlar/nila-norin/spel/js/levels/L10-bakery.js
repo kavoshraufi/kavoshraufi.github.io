@@ -1,7 +1,7 @@
 import {
   TAU, clamp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
-  drawHeartPath, playSfx, playNote,
+  drawHeartPath, playSfx, playNote, bgPoint,
 } from '../core.js';
 
 export const level10 = {
@@ -43,31 +43,59 @@ export const level10 = {
     function layout(W, H) {
       const pr = api.playRect(W, H);
       const land = W >= H;
-      const gxs = land ? [0.20, 0.40, 0.60, 0.80] : [0.18, 0.40, 0.60, 0.82];
-      const gy = pr.y + pr.h * (land ? 0.34 : 0.30);
-      s.guests.forEach((g, i) => {
-        g.x = pr.x + pr.w * gxs[i];
-        g.y = gy;
-      });
-      s.standX = pr.x + pr.w * 0.50;
-      s.standY = pr.y + pr.h * (land ? 0.68 : 0.60);
-      if (!s.dragCake) {
-        s.cake.x = s.standX;
-        s.cake.y = s.standY - 12;
+      if (land) {
+        // Gäster med fötterna på diskens framkant, tårtfatet på det målade glasstället.
+        const gxs = [145, 220, 490, 575];
+        s.guests.forEach((g, i) => {
+          const p = bgPoint(W, H, 'bageri', gxs[i], 298);
+          g.x = p.x; g.y = p.y;
+        });
+        const st = bgPoint(W, H, 'bageri', 360, 248);
+        s.standX = st.x;
+        s.standY = st.y;
+        if (!s.dragCake) {
+          s.cake.x = s.standX;
+          s.cake.y = s.standY - 12;
+        }
+        // Brickan på skåpsfronten, med luft till titelraden under.
+        const trayY = pr.y + pr.h * 0.80;
+        const trayXs = [0.28, 0.38, 0.48, 0.58, 0.68, 0.78];
+        s.btns = [
+          { kind: 'base', sprite: 'cake-base', x: pr.x + pr.w * trayXs[0], y: trayY },
+          { kind: 'icing', sprite: 'cake-pink', color: '#ff8db4', x: pr.x + pr.w * trayXs[1], y: trayY },
+          { kind: 'icing', sprite: 'cake-blue', color: '#7cc6f5', x: pr.x + pr.w * trayXs[2], y: trayY },
+          { kind: 'icing', sprite: 'cake-yellow', color: '#ffd452', x: pr.x + pr.w * trayXs[3], y: trayY },
+          { kind: 'berry', sprite: 'berry', x: pr.x + pr.w * trayXs[4], y: trayY },
+          { kind: 'star', sprite: 'star', x: pr.x + pr.w * trayXs[5], y: trayY },
+        ];
+        s.heroPos = [pr.x + pr.w * 0.04, pr.y + pr.h * 0.86];
+        s.buddyPos = [pr.x + pr.w * 0.96, pr.y + pr.h * 0.86];
+      } else {
+        const gxs = [0.18, 0.40, 0.60, 0.82];
+        const gy = pr.y + pr.h * 0.30;
+        s.guests.forEach((g, i) => {
+          g.x = pr.x + pr.w * gxs[i];
+          g.y = gy;
+        });
+        s.standX = pr.x + pr.w * 0.50;
+        s.standY = pr.y + pr.h * 0.60;
+        if (!s.dragCake) {
+          s.cake.x = s.standX;
+          s.cake.y = s.standY - 12;
+        }
+        const trayY = pr.y + pr.h * 0.76;
+        const trayXs = [0.15, 0.29, 0.43, 0.57, 0.71, 0.85];
+        s.btns = [
+          { kind: 'base', sprite: 'cake-base', x: pr.x + pr.w * trayXs[0], y: trayY },
+          { kind: 'icing', sprite: 'cake-pink', color: '#ff8db4', x: pr.x + pr.w * trayXs[1], y: trayY },
+          { kind: 'icing', sprite: 'cake-blue', color: '#7cc6f5', x: pr.x + pr.w * trayXs[2], y: trayY },
+          { kind: 'icing', sprite: 'cake-yellow', color: '#ffd452', x: pr.x + pr.w * trayXs[3], y: trayY },
+          { kind: 'berry', sprite: 'berry', x: pr.x + pr.w * trayXs[4], y: trayY },
+          { kind: 'star', sprite: 'star', x: pr.x + pr.w * trayXs[5], y: trayY },
+        ];
+        s.heroPos = [pr.x + pr.w * 0.22, pr.y + pr.h * 0.90];
+        s.buddyPos = [pr.x + pr.w * 0.78, pr.y + pr.h * 0.90];
       }
-
-      const trayY = pr.y + pr.h * (land ? 0.86 : 0.78);
-      const trayXs = land ? [0.27, 0.38, 0.48, 0.58, 0.68, 0.77] : [0.15, 0.29, 0.43, 0.57, 0.71, 0.85];
-      s.btns = [
-        { kind: 'base', sprite: 'cake-base', x: pr.x + pr.w * trayXs[0], y: trayY },
-        { kind: 'icing', sprite: 'cake-pink', color: '#ff8db4', x: pr.x + pr.w * trayXs[1], y: trayY },
-        { kind: 'icing', sprite: 'cake-blue', color: '#7cc6f5', x: pr.x + pr.w * trayXs[2], y: trayY },
-        { kind: 'icing', sprite: 'cake-yellow', color: '#ffd452', x: pr.x + pr.w * trayXs[3], y: trayY },
-        { kind: 'berry', sprite: 'berry', x: pr.x + pr.w * trayXs[4], y: trayY },
-        { kind: 'star', sprite: 'star', x: pr.x + pr.w * trayXs[5], y: trayY },
-      ];
-      s.heroPos = [pr.x + pr.w * (land ? 0.11 : 0.22), pr.y + pr.h * (land ? 0.78 : 0.90)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.89 : 0.78), pr.y + pr.h * (land ? 0.78 : 0.90)];
       return pr;
     }
 
