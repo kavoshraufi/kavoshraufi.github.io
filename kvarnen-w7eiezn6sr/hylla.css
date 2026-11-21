@@ -77,13 +77,16 @@ body {
 }
 
 .hyllrad {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(0.55rem, 2.2vw, 1.4rem);
+  display: flex;
+  gap: clamp(0.45rem, 1.8vw, 1.1rem);
   align-items: end;
   min-height: 0;
-  padding: 0.15rem 0.2rem 0;
+  padding: 0.15rem 0.2rem 0.35rem;
   position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hyllrad::after {
@@ -107,9 +110,12 @@ a.titelkort {
   align-items: center;
   text-decoration: none;
   color: inherit;
+  flex: 0 0 auto;
+  width: min(10.4rem, 38vw);
   min-height: 0;
   height: 100%;
   justify-content: flex-end;
+  scroll-snap-align: start;
   -webkit-tap-highlight-color: transparent;
 }
 
