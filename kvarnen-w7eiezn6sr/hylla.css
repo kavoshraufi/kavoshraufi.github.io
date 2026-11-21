@@ -1,0 +1,212 @@
+/* Hylla-layout ovanpå delat/stil.css. Liggande först, studiokänsla. */
+
+body {
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgba(196, 164, 106, 0.16), transparent 60%),
+    radial-gradient(800px 400px at 80% 120%, rgba(42, 33, 24, 0.9), transparent 50%),
+    var(--yta-natt);
+}
+
+.hylla {
+  grid-template-rows: auto 1fr auto;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.hylla-huvud {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem 1.1rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.15rem;
+}
+
+.studio-marke {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.studio-marke img {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(196, 164, 106, 0.35);
+}
+
+.studio-namn {
+  font-family: var(--font-rubrik);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+  color: var(--guld);
+  margin: 0;
+}
+
+.hylla-huvud h1 {
+  font-family: var(--font-rubrik);
+  font-weight: 500;
+  font-size: clamp(1.05rem, 2.6vw, 1.45rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--text-ljus);
+}
+
+.hylla-ingress {
+  margin: 0;
+  color: var(--guld);
+  opacity: 0.9;
+  font-style: italic;
+  font-size: 0.92rem;
+  margin-left: auto;
+}
+
+.hyllrad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.55rem, 2.2vw, 1.4rem);
+  align-items: end;
+  min-height: 0;
+  padding: 0.15rem 0.2rem 0;
+  position: relative;
+}
+
+.hyllrad::after {
+  content: "";
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  bottom: -0.45rem;
+  height: 10px;
+  border-radius: 2px 2px 4px 4px;
+  background: linear-gradient(180deg, #c4a46a 0%, #8a6a3a 42%, #3a2a18 100%);
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(246, 238, 220, 0.25) inset;
+  pointer-events: none;
+}
+
+a.titelkort {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  min-height: 0;
+  height: 100%;
+  justify-content: flex-end;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a.titelkort .omslag-ram {
+  position: relative;
+  width: 100%;
+  max-width: 11.5rem;
+  aspect-ratio: 3 / 4;
+  max-height: calc(100dvh - 8.2rem);
+  border-radius: 3px 5px 2px 2px;
+  overflow: hidden;
+  background: #2a2118;
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(196, 164, 106, 0.35);
+  transform: translateY(0);
+  transition: transform var(--dur-medel) var(--ease-fjader), box-shadow var(--dur-medel) var(--ease-ut);
+}
+
+a.titelkort img.omslag {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+a.titelkort:hover .omslag-ram,
+a.titelkort:focus-visible .omslag-ram {
+  transform: translateY(-6px);
+  box-shadow:
+    0 16px 28px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(226, 182, 87, 0.7);
+}
+
+.titelkort .meta {
+  margin-top: 0.55rem;
+  text-align: center;
+  width: 100%;
+}
+
+.titelkort .typ {
+  display: block;
+  font-family: var(--font-rubrik);
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--guld);
+  margin-bottom: 0.1rem;
+}
+
+.titelkort h2 {
+  font-family: var(--font-rubrik);
+  font-weight: 500;
+  font-size: clamp(0.72rem, 1.7vw, 0.95rem);
+  letter-spacing: 0.04em;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.hylla-fot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+  padding-top: 0.15rem;
+  font-size: 0.88rem;
+  color: color-mix(in srgb, var(--text-ljus) 70%, var(--yta-natt));
+}
+
+.hylla-fot .hint {
+  margin: 0;
+  font-style: italic;
+  color: var(--guld);
+  opacity: 0.85;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.installera-rad {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.installera-rad.synlig { display: flex; }
+
+.installera-rad p {
+  margin: 0;
+  font-size: 0.86rem;
+  max-width: 28rem;
+  color: var(--text-ljus);
+}
+
+#installera-knapp {
+  font-family: var(--font-rubrik);
+  letter-spacing: 0.06em;
+}
+
+@media (max-height: 420px) {
+  .hylla-ingress { font-size: 0.82rem; }
+  .titelkort .meta { margin-top: 0.28rem; }
+  a.titelkort .omslag-ram { max-height: calc(100dvh - 6.6rem); }
+  .hylla-fot { margin-top: 0.45rem; }
+  .hyllrad::after { bottom: -0.3rem; height: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.titelkort .omslag-ram { transition: none; }
+}
