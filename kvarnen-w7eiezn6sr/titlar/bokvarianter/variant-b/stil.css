@@ -1,0 +1,94 @@
+/* Variant B – Bildbok: helskärmsbild, kort text på halvtransparent papper, lugn rörelse. */
+.app {
+  position: fixed;
+  inset: 0;
+  background: var(--paper-2);
+}
+.scen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.sida {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition: opacity 480ms ease, transform 480ms ease;
+}
+.sida.synlig {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  z-index: 2;
+}
+.sida.ut-vanster, .sida.ut-hoger { opacity: 0; transform: translateY(-12px); }
+.sida.in-vanster, .sida.in-hoger { transform: translateY(16px); }
+
+.bildfalt {
+  position: absolute;
+  inset: 0;
+}
+.bildfalt img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.textkort {
+  position: absolute;
+  left: 50%;
+  bottom: calc(2.4rem + var(--safe-bottom));
+  transform: translateX(-50%);
+  width: min(58ch, calc(100% - 3rem));
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  color: var(--ink);
+  padding: 1rem 1.25rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--paper) 40%, rgba(44, 36, 27, 0.12));
+}
+.textkort.titel {
+  bottom: calc(3.2rem + var(--safe-bottom));
+  top: auto;
+  transform: translateX(-50%);
+  text-align: center;
+  width: min(48ch, calc(100% - 3rem));
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  padding: 1rem 1.35rem 1.1rem;
+}
+.textkort.titel .rubrik { margin-bottom: 0; }
+.textkort .prosa p { margin-bottom: 0; }
+.textkort .vers .mesra { margin-bottom: 0.6rem; font-size: 1.25rem; line-height: 2.05; }
+
+.svepzon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20%;
+  z-index: 5;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+}
+.svepzon.fore { left: 0; }
+.svepzon.nasta { right: 0; }
+
+.topp, .fot { color: #f6efe2; }
+.topp {
+  background: linear-gradient(to bottom, rgba(28, 22, 16, 0.38), transparent);
+}
+.fot {
+  background: linear-gradient(to top, rgba(28, 22, 16, 0.38), transparent);
+}
+.topp h1, .fot, .etikett, .ljud-knapp { color: #f6efe2; text-shadow: 0 1px 2px rgba(20, 16, 12, 0.55); }
+.topp .samling { color: color-mix(in srgb, #f6efe2 82%, #2c241b); }
+.fot button { border-color: color-mix(in srgb, #f6efe2 45%, transparent); color: #f6efe2; background: color-mix(in srgb, #2c241b 25%, transparent); }
+
+@media (max-width: 700px) {
+  :root { --brod-storlek: 18px; }
+  .textkort { width: min(58ch, calc(100% - 1.6rem)); padding: 0.8rem 0.95rem; }
+}
+
+/* Plats för Kvarnens Hem-knapp i testappen. */
+.topp { padding-left: 5.6rem; }

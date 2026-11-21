@@ -1,0 +1,72 @@
+/* Variant A – Ljus bok: en sida i liggande, stor bild + luftig text, mjuk glidning. */
+.app {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(180deg, #faf4e8 0%, var(--paper) 40%, var(--paper-2) 100%);
+}
+.scen {
+  position: absolute;
+  inset: calc(var(--topp-h) + var(--safe-top)) 0 calc(var(--fot-h) + var(--safe-bottom));
+  overflow: hidden;
+}
+.sida {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr);
+  gap: 0;
+  opacity: 0;
+  transform: translateX(28px);
+  pointer-events: none;
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+.sida.synlig {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  z-index: 2;
+}
+.sida.ut-vanster { opacity: 0; transform: translateX(-28px); }
+.sida.ut-hoger { opacity: 0; transform: translateX(28px); }
+.sida.in-vanster { transform: translateX(-28px); }
+.sida.in-hoger { transform: translateX(28px); }
+
+.bildfalt {
+  position: relative;
+  overflow: hidden;
+}
+.bildfalt img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.textfalt {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: auto;
+  padding: clamp(0.7rem, 2.8vw, 1.6rem) clamp(1.1rem, 4vw, 2.6rem) 0.4rem;
+}
+.svepzon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18%;
+  z-index: 5;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+}
+.svepzon.fore { left: 0; }
+.svepzon.nasta { right: 0; }
+
+@media (max-width: 700px) {
+  :root { --brod-storlek: 18px; }
+  .textfalt { padding: 0.8rem 1rem; }
+}
+
+/* Plats för Kvarnens Hem-knapp i testappen. */
+.topp { padding-left: 5.6rem; }
