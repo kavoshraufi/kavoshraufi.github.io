@@ -2,6 +2,10 @@
 
 Appens synliga nummer och service workerns cache-namn kommer från samma konstant i `kvarnen-w7eiezn6sr/version.js` (`KVARNEN_APP_VERSION`). En utgåva 1.4 blir cache-namnet `kvarnen-test-pages-v4`.
 
+## 1.8
+
+Visuell puts i Nila & Norin – Äventyrsdalen. Trädgårdsmagin har en ren gräsmatta utan de målade rabatterna, fröpåsarna och vattenkannan som tidigare låg under de interaktiva objekten, och titeln sitter inte längre på en bädd. I Lilla Bagaren står gästerna på diskens framkant i stället för att sväva över glaskupan, och titeln har mer luft till ingrediensbrickan. Vinstknapparna håller sig på en rad även i 667×375.
+
 ## 1.7
 
 Nila & Norin byts ut mot den ombyggda versionen Äventyrsdalen. Spelet har karta, skattbok, föräldrameny och tio banor med olika lekar: Djurräddningen, Bäckplask, Trädgårdsmagin, Sorteringsstugan, Musikgläntan, Molnäventyret, Brobyggaren, Stjärnhimlen, Skattjakten och Lilla Bagaren.
