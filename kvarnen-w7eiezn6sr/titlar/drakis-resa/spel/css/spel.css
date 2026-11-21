@@ -1,0 +1,63 @@
+/* Drakis resa – referensskal ovanpå Kvarnens stil. */
+html, body {
+  background: #0b1020;
+  color: #f4efe2;
+  overflow: hidden;
+}
+.app-liggande {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+.topplist {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.35rem 0.7rem 0.2rem;
+  flex: 0 0 auto;
+  z-index: 4;
+}
+.topplist h1 {
+  margin: 0;
+  font-family: var(--font-rubrik);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+.topplist .kicker {
+  display: block;
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--guld);
+  opacity: 0.9;
+}
+.mixer, .spar-rad {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+}
+.mixer label { display: flex; align-items: center; gap: 0.25rem; }
+.mixer input[type="range"] { width: 72px; }
+.spar-status { opacity: 0.8; min-width: 6.5rem; }
+#rw { inset: auto; flex: 1 1 auto; position: relative; min-height: 0; }
+.hoppa-intro {
+  position: fixed;
+  top: calc(var(--safe-top) + 0.6rem);
+  right: calc(var(--safe-right) + 0.6rem);
+  z-index: 90;
+  display: none;
+}
+body.studio-igang .hoppa-intro { display: inline-flex; }
+#knapp-helskarm { display: inline-flex; min-width: 48px; min-height: 40px; }
+
+.topplist {
+  position: fixed;
+  top: var(--safe-top);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  background: linear-gradient(rgba(11, 16, 32, 0.92), rgba(11, 16, 32, 0));
+}
