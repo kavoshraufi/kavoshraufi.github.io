@@ -79,7 +79,7 @@ export class Ljudmotor {
 
   get state() {
     if (!this.ctx) return 'idle';
-    if (!this.upplast || this.ctx.state === 'suspended') return 'locked';
+    if (!this.upplast || this.ctx.state !== 'running') return 'locked';
     if (this._onskadePaus) return 'paused';
     return this.ctx.state === 'running' ? 'running' : this.ctx.state;
   }
@@ -104,7 +104,7 @@ export class Ljudmotor {
 
   async unlock() {
     this._initGraph();
-    if (this.ctx.state === 'suspended') {
+    if (this.ctx.state !== 'running') {
       try {
         await this.ctx.resume();
       } catch {
@@ -567,7 +567,7 @@ export class Ljudmotor {
   _vidSynlighet() {
     if (!this.ctx) return;
     if (document.hidden) {
-      this._kordeInnanDolj = this.ctx.state === 'running';
+      this._kordeInnanDolj = this.ctx.state === 'running' || this.upplast;
       this.ctx.suspend().catch(() => {});
     } else if (this._kordeInnanDolj && !this._onskadePaus) {
       this.ctx.resume().catch(() => {});
