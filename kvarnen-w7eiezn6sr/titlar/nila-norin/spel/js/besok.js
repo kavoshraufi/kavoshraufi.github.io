@@ -15,10 +15,11 @@ const TYST_MS = 2100;
 export class Besokare {
   constructor(particles, st) {
     this.p = particles; this.st = st;
-    this.c = null; this.n = 0; this.hittad = false; this.trailT = 0;
+    this.c = null; this.n = 0; this.hittad = false; this.trailT = 0; this._w = 844;
   }
   reset() { this.c = null; this.hittad = false; this.n = 0; puls.t = performance.now(); }
   update(dt, W, H, pr, aktiv) {
+    this._w = W || 844;
     const now = performance.now();
     if (!this.c) {
       if (aktiv && now - puls.t > TYST_MS) this.spawn(W, H, pr);
@@ -68,6 +69,6 @@ export class Besokare {
     const c = this.c;
     if (!c) return;
     const flap = 1 - Math.abs(Math.sin(T * c.flap)) * 0.35;
-    blit(ctx, c.id, c.x, c.y, { h: c.h * (c.glad ? 1.15 : 1), face: c.dir > 0 ? 1 : -1, sy: c.id === 'ladybug' ? 1 : flap });
+    blit(ctx, c.id, c.x, c.y, { h: c.h * (c.glad ? 1.15 : 1), face: c.dir > 0 ? 1 : -1, sy: c.id === 'ladybug' ? 1 : flap, noTrack: c.x < 28 || c.x > this._w - 28 });
   }
 }
