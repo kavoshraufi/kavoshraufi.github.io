@@ -8,14 +8,18 @@ export const level07 = {
   id: 'bridge',
   shortTitle: 'Bro',
   title: 'Brobyggaren',
-  icon: '🪵',
+  art: 'bro',
   bg: 'back',
   tint: '#b8d7cd',
   goalTotal: 3,
-  goalIcon: '🪵',
+  rounds: 5,
+  goalArt: 'bro',
   bookDesc: 'En fin bro av sten, björkstock och blomplanka över bäcken!',
 
   create(api) {
+    // Varje runda vill en ny skogsfamilj över ån (alla målade i atlasen).
+    const FAM = [['hedge', 'bunny', 'fox'], ['bear', 'hedge-baby', 'bunny-baby'], ['owl', 'fox-baby', 'owl-baby'], ['fox', 'bunny-baby', 'hedge'], ['bear', 'bunny', 'fox-baby']];
+    const fam = FAM[((api.round || 1) - 1) % FAM.length];
     const s = {
       idleT: 0,
       placed: 0,
@@ -25,7 +29,7 @@ export const level07 = {
       heroExprT: 0,
       heroJump: 0,
       buddyJump: 0,
-      inited: false,
+      inited: false, riverWave: 0,
       slots: [
         { id: 'stone', shape: 'round', x: 0, y: 0, filled: false, popT: 0, note: 0 },
         { id: 'log', shape: 'wide', x: 0, y: 0, filled: false, popT: 0, note: 2 },
@@ -37,23 +41,28 @@ export const level07 = {
         { id: 'stone', shape: 'round', x: 0, y: 0, homeX: 0, homeY: 0, done: false },
       ],
       walkers: [
-        { id: 'hedge', prog: 0, targetProg: 0, rx: 0.11, ry: 0.50, ex: 0.78, ey: 0.48 },
-        { id: 'bunny', prog: 0, targetProg: 0, rx: 0.20, ry: 0.62, ex: 0.87, ey: 0.62 },
-        { id: 'fox', prog: 0, targetProg: 0, rx: 0.11, ry: 0.76, ex: 0.76, ey: 0.76 },
+        { id: fam[0], prog: 0, targetProg: 0, hop: 0, lastNote: -1, rx: 0.11, ry: 0.50, ex: 0.78, ey: 0.48 },
+        { id: fam[1], prog: 0, targetProg: 0, hop: 0, lastNote: -1, rx: 0.20, ry: 0.62, ex: 0.87, ey: 0.62 },
+        { id: fam[2], prog: 0, targetProg: 0, hop: 0, lastNote: -1, rx: 0.11, ry: 0.76, ex: 0.76, ey: 0.76 },
       ],
     };
 
     function layout(W, H) {
       const pr = api.playRect(W, H);
       const land = W >= H;
-      const sx = [0.39, 0.50, 0.61];
+      // Rundor: brodelarnas ordning i ån och på stranden byts varje runda.
+      const rr = ((api.round || 1) - 1);
+      const sx0 = land ? [0.39, 0.50, 0.61] : [0.27, 0.50, 0.73];
+      const sx = [sx0[(0 + rr) % 3], sx0[(1 + rr * 2) % 3], sx0[(2 + rr) % 3]];
+      if (new Set(sx).size < 3) { sx[0] = sx0[rr % 3]; sx[1] = sx0[(rr + 1) % 3]; sx[2] = sx0[(rr + 2) % 3]; }
       const sy = land ? 0.60 : 0.54;
       s.slots.forEach((sl, i) => {
         sl.x = pr.x + pr.w * sx[i];
         sl.y = pr.y + pr.h * sy;
       });
       s.pieces.forEach((p, i) => {
-        p.homeX = pr.x + pr.w * (land ? (0.30 + i * 0.20) : (0.24 + i * 0.26));
+        const j = (i + rr * 2) % 3;
+        p.homeX = pr.x + pr.w * (land ? (0.30 + j * 0.20) : (0.24 + j * 0.26));
         p.homeY = pr.y + pr.h * (land ? 0.24 : 0.24);
         if (!s.inited || (!p.done && s.dragging !== p)) {
           p.x = p.homeX;
@@ -142,9 +151,16 @@ export const level07 = {
         if (s.heroExprT > 0) { s.heroExprT -= dt; if (s.heroExprT <= 0) s.heroExpr = 'glad'; }
         if (s.heroJump > 0) s.heroJump = Math.max(0, s.heroJump - dt * 2.4);
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.4);
+        if (s.riverWave > 0) s.riverWave = Math.max(0, s.riverWave - dt * 1.8);
         for (const sl of s.slots) if (sl.popT > 0) sl.popT = Math.max(0, sl.popT - dt * 3.5);
         for (const w of s.walkers) {
+          if (w.hop > 0) w.hop = Math.max(0, w.hop - dt * 2.6);
           w.prog = lerp(w.prog, w.targetProg, Math.min(1, dt * 2.2));
+          const stepIdx = w.prog > 0.68 ? 2 : w.prog > 0.50 ? 1 : w.prog > 0.34 ? 0 : -1;
+          if (stepIdx > w.lastNote && s.slots[stepIdx]?.filled) {
+            w.lastNote = stepIdx;
+            s.slots[stepIdx].popT = 0.7;
+          }
         }
       },
 
@@ -182,6 +198,20 @@ export const level07 = {
           }
         }
 
+        // 2b. Skogsvännerna som väntar/går över bron!
+        const pr = layout(W, H);
+        for (let idx = 0; idx < s.walkers.length; idx++) {
+          const w = s.walkers[idx];
+          const wx = lerp(pr.x + pr.w * w.rx, pr.x + pr.w * w.ex, w.prog);
+          const wy = lerp(pr.y + pr.h * w.ry, pr.y + pr.h * w.ey, w.prog);
+          if (dist(x, y, wx, wy - 24) < 42) {
+            w.hop = 1;
+            playNote(idx * 2, 0.32);
+            api.particles.burst(wx, wy - 36, 10, { kind: 'heart', colors: ['#ff93b0', '#ffe17a'] });
+            return;
+          }
+        }
+
         // 3. Tryck på systrarna → glädjehopp
         if (s.heroPos && dist(x, y, s.heroPos[0], s.heroPos[1] - 42) < 52) {
           s.heroJump = 1; s.heroExpr = 'skratt'; s.heroExprT = 0.9;
@@ -196,8 +226,9 @@ export const level07 = {
           return;
         }
 
-        // 4. Vattenplask i bäcken
-        playSfx('water');
+        // 4. Vattenplask i bäcken → våg som guppar brodelarna!
+        s.riverWave = 1;
+        playSfx('water'); playNote(1, 0.24);
         api.particles.burst(x, y, 8, { colors: ['#98e5ff', '#ffffff'], lift: 60 });
       },
 
@@ -211,12 +242,13 @@ export const level07 = {
         if (!s.dragging) return;
         const p = s.dragging;
         s.dragging = null;
+        const match = s.slots.find((sl) => !sl.filled && sl.id === p.id);
+        if (match && dist(p.x, p.y, match.x, match.y) < 68) {
+          snapPiece(p, match);
+          return;
+        }
         for (const sl of s.slots) {
-          if (!sl.filled && dist(p.x, p.y, sl.x, sl.y) < 62) {
-            if (sl.id === p.id) {
-              snapPiece(p, sl);
-              return;
-            }
+          if (!sl.filled && dist(p.x, p.y, sl.x, sl.y) < 52) {
             playSfx('softno');
             p.x = p.homeX; p.y = p.homeY;
             return;
@@ -249,7 +281,7 @@ export const level07 = {
           const ex = pr.x + pr.w * w.ex;
           const ey = pr.y + pr.h * w.ey;
           const wx = lerp(sx, ex, w.prog);
-          const wy = lerp(sy, ey, w.prog) - (w.prog > 0 && w.prog < 1 ? Math.abs(Math.sin(w.prog * Math.PI * 5)) * 12 : 0);
+          const wy = lerp(sy, ey, w.prog) - (w.prog > 0 && w.prog < 1 ? Math.abs(Math.sin(w.prog * Math.PI * 5)) * 12 : 0) - Math.sin(w.hop * Math.PI) * 18;
           drawShadow(ctx, wx, wy + 2, 18, 5);
           blit(ctx, w.id, wx, wy, { h: 62, face: 1 });
           if (w.prog > 0.95) {
@@ -269,8 +301,8 @@ export const level07 = {
         if (api.won) {
           const d1 = api.gladjedans(T);
           const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.80, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.80, { ...d2, who: buddyId, scale: heroScale, face: -1 });
+          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
+          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
         } else {
           drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
             who: leadId, scale: heroScale, expr: s.heroExpr,
@@ -290,7 +322,8 @@ export const level07 = {
           if (p.done) continue;
           const held = s.dragging === p || s.selected === p;
           if (!held) drawGlowRing(ctx, T, p.x, p.y, 32, 'rgba(255, 224, 120, 0.5)');
-          drawBridgePiece(ctx, p.shape, p.x, p.y + (held ? -6 : 0), false, held ? 1.15 : 1);
+          const floatBob = held ? -6 : Math.sin(T * 2.5 + p.homeX) * 3.5 - Math.sin(s.riverWave * Math.PI) * 9;
+          drawBridgePiece(ctx, p.shape, p.x, p.y + floatBob, false, held ? 1.15 : 1);
         }
 
         // Pekhand

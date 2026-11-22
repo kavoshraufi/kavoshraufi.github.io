@@ -1,27 +1,29 @@
 import {
   TAU, clamp, lerp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
-  drawMushroom, playSfx, playNote,
+  drawMushroom, playSfx, playNote, drawIkon,
 } from '../core.js';
 
 export const level05 = {
   id: 'music',
   shortTitle: 'Musik',
   title: 'Musikgläntan',
-  icon: '🍄',
+  art: 'not',
   bg: 'glanta',
   tint: '#c9d7b6',
   goalTotal: 3,
-  goalIcon: '🎵',
+  rounds: 3,
+  goalArt: 'not',
   bookDesc: 'Skogens svamptrummor spelar glada visor med djuren!',
 
   create(api) {
+    // Rundor: melodierna blir en ton längre per runda, och nya vänner vaknar i gläntan.
     const SONGS = [
-      [0, 2],
-      [1, 3, 2],
-      [0, 1, 2, 3],
-    ];
-    const FRIENDS = ['owl', 'fox', 'bunny'];
+      [[0, 2], [1, 3, 2], [0, 1, 2, 3]],
+      [[2, 0, 1], [3, 1, 2, 0], [0, 2, 1, 3, 2]],
+      [[1, 2, 3, 0], [0, 3, 1, 2, 3], [2, 1, 0, 3, 1, 2]],
+    ][((api.round || 1) - 1) % 3];
+    const FRIENDS = [['owl', 'fox', 'bunny'], ['hedge', 'bear', 'bird'], ['owl-baby', 'fox-baby', 'bunny-baby']][((api.round || 1) - 1) % 3];
 
     const s = {
       idleT: 0,
@@ -43,7 +45,7 @@ export const level05 = {
         { i: 2, color: '#6ec798', note: 2, squash: 0, glow: 0, x: 0, y: 0 },
         { i: 3, color: '#9f87ea', note: 4, squash: 0, glow: 0, x: 0, y: 0 },
       ],
-      fans: [],
+      fans: [], notes: [],
     };
 
     function layout(W, H) {
@@ -82,10 +84,17 @@ export const level05 = {
       m.glow = 1;
       playNote(m.note, 0.42);
       api.particles.burst(m.x, m.y - 26, 12, { kind: 'star', colors: [m.color, '#ffe885', '#ffffff'] });
-      if (fromDemo) return;
+      if (fromDemo) {
+        s.heroJump = 0.35; s.buddyJump = 0.35;
+        return;
+      }
 
       s.heroJump = 0.55;
       s.buddyJump = 0.45;
+      for (const f of s.fans) f.hop = 0.85;
+      if (s.fans.length) playNote((m.note + 2) % 6, 0.22);
+      if (s.heroPos) s.notes.push({ ax: m.x, ay: m.y - 28, bx: s.heroPos[0], by: s.heroPos[1] - 58, t: 0, c: m.color });
+      if (s.buddyPos) s.notes.push({ ax: m.x, ay: m.y - 28, bx: s.buddyPos[0], by: s.buddyPos[1] - 58, t: 0, c: '#ffe885' });
       s.heroExpr = 'skratt';
       s.heroExprT = 0.6;
       if (api.won || s.phase !== 'play') return;
@@ -96,7 +105,7 @@ export const level05 = {
         s.step++;
         if (s.step >= song.length) {
           // Runda klar! Väck ett nytt skogsdjur till gläntan
-          s.fans.push(FRIENDS[s.round]);
+          s.fans.push({ id: FRIENDS[s.round], hop: 1, note: s.round + 2 });
           s.round++;
           playSfx('pling');
           s.heroJump = 1;
@@ -123,6 +132,11 @@ export const level05 = {
         if (s.heroExprT > 0) { s.heroExprT -= dt; if (s.heroExprT <= 0) s.heroExpr = 'glad'; }
         if (s.heroJump > 0) s.heroJump = Math.max(0, s.heroJump - dt * 2.6);
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.6);
+        for (const f of s.fans) if (f.hop > 0) f.hop = Math.max(0, f.hop - dt * 2.8);
+        for (let i = s.notes.length - 1; i >= 0; i--) {
+          s.notes[i].t += dt * 2.4;
+          if (s.notes[i].t >= 1) s.notes.splice(i, 1);
+        }
         for (const m of s.shrooms) {
           if (m.squash > 0) m.squash = Math.max(0, m.squash - dt * 4.2);
           if (m.glow > 0) m.glow = Math.max(0, m.glow - dt * 1.8);
@@ -176,18 +190,46 @@ export const level05 = {
           }
         }
 
+        // 2b. Vaknade djurvänner sjunger i kör!
+        const pr = layout(W, H);
+        for (let idx = 0; idx < s.fans.length; idx++) {
+          const fan = s.fans[idx];
+          const fx = pr.x + pr.w * (0.34 + idx * 0.16);
+          const fy = pr.y + pr.h * 0.44;
+          if (dist(x, y, fx, fy - 24) < 42) {
+            fan.hop = 1;
+            playNote(fan.note, 0.4);
+            api.particles.burst(fx, fy - 42, 12, { kind: 'heart', colors: ['#ffe17a', '#ff9ec4', '#ffffff'] });
+            return;
+          }
+        }
+
+        // 2c. Eldflugan snurrar och glittrar!
+        if (!api.won && dist(x, y, s.flyX, s.flyY) < 38) {
+          playSfx('star');
+          playNote(5, 0.25);
+          api.particles.burst(s.flyX, s.flyY, 12, { kind: 'star', colors: ['#fff9bd', '#ffe46e', '#ffffff'] });
+          return;
+        }
+
         // 3. Systrarna
         if (s.heroPos && dist(x, y, s.heroPos[0], s.heroPos[1] - 42) < 52) {
           s.heroJump = 1; s.heroExpr = 'skratt'; s.heroExprT = 0.9;
-          playSfx('cheer');
-          api.particles.burst(s.heroPos[0], s.heroPos[1] - 54, 12, { kind: 'heart' });
+          playSfx('cheer'); playNote(0, 0.35);
+          for (const f of s.fans) { f.hop = 1; playNote(f.note, 0.3); }
+          api.particles.burst(s.heroPos[0], s.heroPos[1] - 54, 14, { kind: 'heart' });
           return;
         }
         if (s.buddyPos && dist(x, y, s.buddyPos[0], s.buddyPos[1] - 42) < 52) {
           s.buddyJump = 1;
-          playSfx('pling');
-          api.particles.burst(s.buddyPos[0], s.buddyPos[1] - 54, 12, { kind: 'star' });
+          playSfx('pling'); playNote(4, 0.35);
+          for (const f of s.fans) { f.hop = 1; playNote(f.note, 0.3); }
+          api.particles.burst(s.buddyPos[0], s.buddyPos[1] - 54, 14, { kind: 'star' });
+          return;
         }
+        // Gläntans eldflugor & toner svarar var man än pekar!
+        playNote(Math.floor((x / Math.max(1, W)) * 5), 0.25);
+        api.particles.burst(x, y, 8, { kind: 'star', colors: ['#fff9bd', '#ffe46e', '#9be296'] });
       },
 
       onMove() {},
@@ -204,18 +246,16 @@ export const level05 = {
           ctx.strokeStyle = '#9c7840';
           ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(rx, ry, 24, 0, TAU); ctx.fill(); ctx.stroke();
-          ctx.font = '20px system-ui, sans-serif';
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('🎵', rx, ry + 1);
+          drawIkon(ctx, 'not', rx, ry + 1, 30, { noTrack: true });
           ctx.restore();
         }
 
-        // Vaknade djurpublik som gungar i takt!
-        s.fans.forEach((fid, idx) => {
+        // Vaknade djurpublik som gungar och sjunger i kör!
+        s.fans.forEach((fan, idx) => {
           const fx = pr.x + pr.w * (0.34 + idx * 0.16);
-          const fy = pr.y + pr.h * 0.44 + Math.sin(T * 5 + idx) * 4;
-          drawShadow(ctx, fx, fy + 2, 20, 6);
-          blit(ctx, fid, fx, fy, { h: 66 });
+          const fy = pr.y + pr.h * 0.44 + Math.sin(T * 5 + idx) * 4 - Math.sin(fan.hop * Math.PI) * 18;
+          drawShadow(ctx, fx, pr.y + pr.h * 0.44 + 2, 20, 6);
+          blit(ctx, fan.id, fx, fy, { h: 66 });
         });
 
         // Svampar
@@ -227,6 +267,14 @@ export const level05 = {
           drawMushroom(ctx, m.x, m.y, 26, m.color, m.squash);
         }
 
+        // Flygande duett-toner mellan svampar & kör
+        for (const nt of s.notes) {
+          const nx = lerp(nt.ax, nt.bx, nt.t);
+          const ny = lerp(nt.ay, nt.by, nt.t) - Math.sin(nt.t * Math.PI) * 34;
+          ctx.save(); ctx.fillStyle = nt.c; ctx.globalAlpha = 1 - nt.t * 0.4;
+          ctx.beginPath(); ctx.arc(nx, ny, 6, 0, TAU); ctx.fill();
+          ctx.restore();
+        }
         // Eldfluga
         if (!api.won) {
           ctx.save();
