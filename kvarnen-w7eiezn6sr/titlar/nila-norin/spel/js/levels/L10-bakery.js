@@ -8,11 +8,12 @@ export const level10 = {
   id: 'bakery',
   shortTitle: 'Bageri',
   title: 'Lilla Bagaren',
-  icon: '🎂',
+  art: 'tarta',
   bg: 'bageri',
   tint: '#e8d7bc',
   goalTotal: 4,
-  goalIcon: '🎂',
+  rounds: 3,
+  goalArt: 'tarta',
   bookDesc: 'Nila & Norins festtårtor som delades med alla skogens vänner!',
 
   create(api) {
@@ -31,12 +32,12 @@ export const level10 = {
       buddyJump: 0,
       cake: { stage: 0, icing: null, berry: false, star: false, bounce: 0, x: 0, y: 0 },
       dragCake: false,
+      // Rundor: nya hungriga skogsvänner köar vid disken varje runda.
       guests: [
-        { id: 'butterfly', got: false, cakeSprite: null, x: 0, y: 0, hop: 0 },
-        { id: 'ladybug', got: false, cakeSprite: null, x: 0, y: 0, hop: 0 },
-        { id: 'bird', got: false, cakeSprite: null, x: 0, y: 0, hop: 0 },
-        { id: 'bear', got: false, cakeSprite: null, x: 0, y: 0, hop: 0 },
-      ],
+        ['butterfly', 'ladybug', 'bird', 'bear'],
+        ['fox', 'bunny', 'hedge', 'owl'],
+        ['bunny-baby', 'fox-baby', 'owl-baby', 'hedge-baby'],
+      ][((api.round || 1) - 1) % 3].map((id, i) => ({ id, got: false, cakeSprite: null, wantIcing: ICINGS[(i + (api.round || 1)) % 3].id, dream: false, x: 0, y: 0, hop: 0 })),
       btns: [],
     };
 
@@ -58,7 +59,7 @@ export const level10 = {
           s.cake.y = s.standY - 12;
         }
         // Brickan på skåpsfronten, med luft till titelraden under.
-        const trayY = pr.y + pr.h * 0.80;
+        const trayY = pr.y + pr.h * 0.84;
         const trayXs = [0.28, 0.38, 0.48, 0.58, 0.68, 0.78];
         s.btns = [
           { kind: 'base', sprite: 'cake-base', x: pr.x + pr.w * trayXs[0], y: trayY },
@@ -136,6 +137,8 @@ export const level10 = {
       if (g.got || s.cake.stage < 2) return;
       g.got = true;
       g.cakeSprite = s.cake.icing || 'cake-pink';
+      g.dream = s.cake.icing === g.wantIcing;
+      if (g.dream) { playSfx('pling'); api.particles.burst(g.x, g.y - 46, 16, { kind: 'star', colors: ['#ffe272', '#ff9ec4', '#88dbff'] }); }
       g.hop = 1;
       s.dragCake = false;
       s.cake = { stage: 0, icing: null, berry: false, star: false, bounce: 0, x: s.standX, y: s.standY - 12 };
@@ -176,20 +179,25 @@ export const level10 = {
           return;
         }
 
-        // 2. Tryck direkt på väntande gäst om tårtan är klar!
-        if (s.cake.stage >= 2) {
-          for (const g of s.guests) {
-            if (!g.got && dist(x, y, g.x, g.y - 22) < 52) {
-              serveGuest(g);
-              return;
-            }
-          }
-        }
-
-        // 3. Bakverktyg/ingredienser i brickan
+        // 2. Bakverktyg/ingredienser i brickan (främst — så gäster bakom aldrig stjäl trycket)
         for (const b of s.btns) {
           if (dist(x, y, b.x, b.y) < 36) {
             applyAction(b);
+            return;
+          }
+        }
+
+        // 3. Tryck på gäst: servera om tårtan är klar, annars hoppar gästen och visar sin drömtårta!
+        for (let gi = 0; gi < s.guests.length; gi++) {
+          const g = s.guests[gi];
+          if (dist(x, y, g.x, g.y - 24) < 52) {
+            if (s.cake.stage >= 2 && !g.got) {
+              serveGuest(g);
+            } else {
+              g.hop = 1;
+              playNote(gi + 1, 0.3);
+              api.particles.burst(g.x, g.y - 40, 10, { kind: 'heart', colors: ['#ff9ec4', '#ffe17a'] });
+            }
             return;
           }
         }
@@ -244,6 +252,16 @@ export const level10 = {
           drawShadow(ctx, g.x, g.y + 4, 24, 6);
           const guestH = { butterfly: 54, ladybug: 46, bird: 62, bear: 66 };
           blit(ctx, g.id, g.x, g.y + bob, { h: guestH[g.id] || 58 });
+          if (!g.got && !api.won) {
+            ctx.save();
+            ctx.translate(g.x + 22, g.y - 68 + Math.sin(T * 2.5 + g.x) * 3);
+            ctx.fillStyle = 'rgba(255, 252, 242, 0.92)';
+            ctx.strokeStyle = 'rgba(154, 118, 66, 0.45)';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.ellipse(0, 0, 16, 13, 0, 0, TAU); ctx.fill(); ctx.stroke();
+            blit(ctx, g.wantIcing, 0, 9, { h: 20, noTrack: true });
+            ctx.restore();
+          }
           if (g.got) {
             blit(ctx, g.cakeSprite, g.x + 24, g.y + 10, { h: 36 });
             ctx.save();
@@ -286,8 +304,8 @@ export const level10 = {
         if (api.won) {
           const d1 = api.gladjedans(T);
           const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.74, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.74, { ...d2, who: buddyId, scale: heroScale, face: -1 });
+          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
+          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
         } else {
           drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
             who: leadId, scale: heroScale, expr: s.heroExpr,

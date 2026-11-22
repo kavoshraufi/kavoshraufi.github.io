@@ -1,59 +1,80 @@
 import {
   TAU, clamp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
-  drawStarPath, playSfx, playNote,
+  drawStarPath, playSfx, playNote, drawIkon,
 } from '../core.js';
 
 export const level09 = {
   id: 'treasure',
   shortTitle: 'Skatt',
   title: 'Skattjakten',
-  icon: '🗝️',
+  art: 'nyckel',
   bg: 'borggard',
   tint: '#d9ccb2',
   goalTotal: 3,
-  goalIcon: '🗝️',
-  bookDesc: 'Tre formnycklar som låste upp krona, nalle och speldosa!',
+  rounds: 3,
+  goalArt: 'nyckel',
+  bookDesc: 'Rävungens tassspår ledde till tre nycklar — krona, nalle och klocka!',
 
   create(api) {
+    // 1.9: ny kärnverb — FÖLJ TASSPÅREN. Rävungen har lekt gömma med systrarnas nycklar:
+    // tryck på tassavtrycken ett i taget, gräv där spåret tar slut, och nyckeln hoppar själv till sin kista.
+    const R = api.round || 1;
+    const SPAR = R === 1 ? 3 : R === 2 ? 4 : 5;      // avtryck per spår
+    const GRAV = R >= 3 ? 3 : 2;                      // grävtryck
+    const ORDNING = [[0, 1, 2], [2, 0, 1], [1, 2, 0]][(R - 1) % 3];
     const s = {
       idleT: 0,
       opened: 0,
-      dragging: null,
-      selected: null,
       heroExpr: 'glad',
       heroExprT: 0,
       heroJump: 0,
       buddyJump: 0,
-      inited: false,
+      cur: 0,          // index i ORDNING
+      step: 0,         // nästa avtryck att trycka på
+      dug: 0,          // grävtryck hittills
+      flyT: 0,         // nyckeln flyger till kistan
+      foxT: 0,         // rävungen tittar upp ur gropen
+      puffs: [],
+      trail: [],
       pairs: [
-        { id: 'circle', chestSprite: 'chest-circle', color: '#f08b49', toy: '👑', hideKind: 'pot', hid: true, open: false, kx: 0, ky: 0, hx: 0, hy: 0, cx: 0, cy: 0, popT: 0 },
-        { id: 'tri', chestSprite: 'chest-tri', color: '#58b878', toy: '🧸', hideKind: 'roses', hid: true, open: false, kx: 0, ky: 0, hx: 0, hy: 0, cx: 0, cy: 0, popT: 0 },
-        { id: 'star', chestSprite: 'chest-star', color: '#f3c63f', toy: '🔔', hideKind: 'arch', hid: true, open: false, kx: 0, ky: 0, hx: 0, hy: 0, cx: 0, cy: 0, popT: 0 },
+        { id: 'circle', chestSprite: 'chest-circle', color: '#f08b49', toy: 'krona', open: false, cx: 0, cy: 0, dx: 0, dy: 0, popT: 0 },
+        { id: 'tri', chestSprite: 'chest-tri', color: '#58b878', toy: 'nalle', open: false, cx: 0, cy: 0, dx: 0, dy: 0, popT: 0 },
+        { id: 'star', chestSprite: 'chest-star', color: '#f3c63f', toy: 'klocka', open: false, cx: 0, cy: 0, dx: 0, dy: 0, popT: 0 },
       ],
     };
+    const target = () => s.pairs[ORDNING[s.cur]];
 
     function layout(W, H) {
       const pr = api.playRect(W, H);
       const land = W >= H;
       const chestXs = land ? [0.27, 0.50, 0.73] : [0.23, 0.50, 0.77];
-      const chestY = pr.y + pr.h * (land ? 0.43 : 0.38);
-      const hideXs = land ? [0.22, 0.50, 0.78] : [0.24, 0.50, 0.76];
-      const hideY = pr.y + pr.h * (land ? 0.74 : 0.66);
-
+      const chestY = pr.y + pr.h * (land ? 0.40 : 0.36);
+      const digXs = land ? [0.24, 0.50, 0.76] : [0.24, 0.50, 0.76];
+      const digY = pr.y + pr.h * (land ? 0.66 : 0.62);
       s.pairs.forEach((p, i) => {
         p.cx = pr.x + pr.w * chestXs[i];
         p.cy = chestY;
-        p.hx = pr.x + pr.w * hideXs[i];
-        p.hy = hideY;
-        if (!s.inited || (!p.open && s.dragging !== p)) {
-          p.kx = p.hx;
-          p.ky = p.hy - 26;
-        }
+        p.dx = pr.x + pr.w * digXs[(i + R) % 3];
+        p.dy = digY + ((i + R) % 2) * pr.h * 0.06;
       });
-      s.heroPos = [pr.x + pr.w * (land ? 0.10 : 0.20), pr.y + pr.h * (land ? 0.80 : 0.88)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.90 : 0.80), pr.y + pr.h * (land ? 0.80 : 0.88)];
-      s.inited = true;
+      // Spåret slingrar från förra grävplatsen (eller mitten nere) fram till nästa grävplats
+      const t = target();
+      if (t) {
+        const prev = s.cur > 0 ? s.pairs[ORDNING[s.cur - 1]] : null;
+        const sx = prev ? prev.dx : pr.x + pr.w * 0.16;
+        const sy = prev ? prev.dy : pr.y + pr.h * 0.62;
+        s.trail = [];
+        for (let k = 1; k <= SPAR; k++) {
+          const f = k / (SPAR + 1);
+          const wig = Math.sin(f * Math.PI * 2 + s.cur) * pr.w * 0.06;
+          const x = sx + (t.dx - sx) * f + wig;
+          const y = sy + (t.dy - sy) * f + Math.sin(f * Math.PI) * pr.h * 0.1;
+          s.trail.push({ x: clamp(x, pr.x + 40, pr.x + pr.w - 40), y: clamp(y, pr.y + pr.h * 0.52, pr.y + pr.h * 0.8), rot: Math.atan2(t.dy - sy, t.dx - sx) + Math.PI / 2 + (k % 2 ? 0.25 : -0.25) });
+        }
+      }
+      s.heroPos = [pr.x + pr.w * (land ? 0.08 : 0.16), pr.y + pr.h * (land ? 0.86 : 0.90)];
+      s.buddyPos = [pr.x + pr.w * (land ? 0.92 : 0.84), pr.y + pr.h * (land ? 0.86 : 0.90)];
       return pr;
     }
 
@@ -96,8 +117,6 @@ export const level09 = {
       if (p.open) return;
       p.open = true;
       p.popT = 1;
-      s.dragging = null;
-      s.selected = null;
       s.opened++;
       playSfx('open');
       playNote(s.opened * 2 - 1, 0.38);
@@ -107,9 +126,13 @@ export const level09 = {
       s.buddyJump = 0.9;
       api.particles.burst(p.cx, p.cy - 24, 18, { kind: 'star', colors: [p.color, '#ffe17a', '#ffffff'] });
       api.setProgress(s.opened);
-      if (s.opened >= s.pairs.length) {
-        api.win(3);
-      }
+      s.cur++; s.step = 0; s.dug = 0;
+      if (s.opened >= s.pairs.length) api.win();
+    }
+
+    function puff(x, y) {
+      s.puffs.push({ x, y, t: 0.5 });
+      api.particles.burst(x, y, 6, { colors: ['#e7d3a8', '#cdb58a', '#ffffff'], speed: 60, lift: 30 });
     }
 
     return {
@@ -120,52 +143,68 @@ export const level09 = {
         if (s.heroExprT > 0) { s.heroExprT -= dt; if (s.heroExprT <= 0) s.heroExpr = 'glad'; }
         if (s.heroJump > 0) s.heroJump = Math.max(0, s.heroJump - dt * 2.4);
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.4);
+        if (s.foxT > 0) s.foxT = Math.max(0, s.foxT - dt * 0.7);
         for (const p of s.pairs) if (p.popT > 0) p.popT = Math.max(0, p.popT - dt * 2.5);
+        for (const f of s.puffs) f.t -= dt;
+        s.puffs = s.puffs.filter((f) => f.t > 0);
+        if (s.flyT > 0) {
+          s.flyT = Math.max(0, s.flyT - dt * 1.9);
+          if (s.flyT === 0) openChest(target());
+        }
       },
 
       onDown(x, y, W, H) {
         layout(W, H);
         s.idleT = 0;
+        const t = target();
 
-        // 1. Öppen nyckel → ta tag i
-        for (const p of s.pairs) {
-          if (!p.hid && !p.open && dist(x, y, p.kx, p.ky) < 42) {
-            s.dragging = p;
-            s.selected = p;
-            playSfx('ok');
+        if (t && s.flyT === 0) {
+          // 1. Nästa tassavtryck
+          const nxt = s.trail[s.step];
+          if (nxt && dist(x, y, nxt.x, nxt.y) < 36) {
+            s.step++;
+            playNote(s.step % 6, 0.28);
+            api.particles.burst(nxt.x, nxt.y, 8, { kind: 'star', colors: ['#ffe17a', '#ffffff', '#ffc38a'] });
+            s.heroExpr = 'forvanad'; s.heroExprT = 0.5;
+            s.foxT = Math.max(s.foxT, 0.45);
+            return;
+          }
+          // 2. Gräv där spåret slutar
+          if (s.step >= s.trail.length && dist(x, y, t.dx, t.dy - 10) < 44) {
+            s.dug++;
+            playSfx('plant');
+            puff(t.dx, t.dy - 6);
+            if (s.dug >= GRAV) {
+              playSfx('star');
+              s.flyT = 1;
+              s.foxT = 1;
+              s.heroJump = 0.6;
+            }
+            return;
+          }
+          // Ett avtryck längre fram: snällt — visa var spåret fortsätter
+          const later = s.trail.findIndex((p, i) => i > s.step && dist(x, y, p.x, p.y) < 36);
+          if (later >= 0) {
+            playSfx('softno');
+            const n2 = s.trail[s.step];
+            api.particles.burst(n2.x, n2.y, 6, { kind: 'star' });
             return;
           }
         }
 
-        // 2. Gömställe → avslöja formnyckel!
+        // 3. Öppna kistor: leksaken skuttar och spelar
         for (const p of s.pairs) {
-          if (p.hid && dist(x, y, p.hx, p.hy - 18) < 52) {
-            p.hid = false;
-            p.kx = p.hx;
-            p.ky = p.hy - 32;
-            playSfx('star');
-            s.heroExpr = 'forvanad';
-            s.heroExprT = 0.9;
-            s.heroJump = 0.5;
-            api.particles.burst(p.hx, p.hy - 22, 14, { kind: 'star', colors: [p.color, '#ffe17a'] });
-            return;
-          }
-        }
-
-        // 3. Kista (om nyckel är vald eller öppen skattleksak!)
-        for (const p of s.pairs) {
-          if (dist(x, y, p.cx, p.cy - 22) < 54) {
+          if (dist(x, y, p.cx, p.cy - 22) < 50) {
+            p.popT = 1;
             if (p.open) {
-              p.popT = 1;
               playNote(s.pairs.indexOf(p) * 2, 0.35);
-              api.particles.burst(p.cx, p.cy - 44, 10, { kind: 'star' });
-              return;
+              api.particles.burst(p.cx, p.cy - 60, 10, { kind: 'star' });
+            } else {
+              playSfx('softno');
+              playNote(0, 0.22);
+              api.particles.burst(p.cx, p.cy - 30, 8, { colors: [p.color, '#ffe17a'] });
             }
-            if (s.selected && !s.selected.hid && !s.selected.open) {
-              if (s.selected === p) openChest(p);
-              else playSfx('softno');
-              return;
-            }
+            return;
           }
         }
 
@@ -180,86 +219,91 @@ export const level09 = {
           s.buddyJump = 1;
           playSfx('pling');
           api.particles.burst(s.buddyPos[0], s.buddyPos[1] - 54, 12, { kind: 'star' });
-        }
-      },
-
-      onMove(x, y) {
-        if (!s.dragging) return;
-        s.dragging.kx = x;
-        s.dragging.ky = y;
-      },
-
-      onUp() {
-        if (!s.dragging) return;
-        const p = s.dragging;
-        s.dragging = null;
-        if (dist(p.kx, p.ky, p.cx, p.cy - 22) < 68) {
-          openChest(p);
           return;
         }
-        for (const other of s.pairs) {
-          if (other !== p && dist(p.kx, p.ky, other.cx, other.cy - 22) < 60) {
-            playSfx('softno');
-            p.kx = p.hx; p.ky = p.hy - 32;
-            return;
-          }
+
+        // 4b. Fontänen i borggården plaskar och glittrar!
+        const pr = layout(W, H);
+        if (dist(x, y, pr.x + pr.w * 0.62, pr.y + pr.h * 0.30) < 52) {
+          playSfx('water');
+          playNote(4, 0.25);
+          api.particles.burst(x, y, 14, { colors: ['#88dcff', '#ffffff', '#cfeaff'], lift: 85 });
+          return;
         }
-        p.kx = p.hx; p.ky = p.hy - 32;
+        // 4c. Rosbuskarna vid murarna prasslar blomblad!
+        if (dist(x, y, pr.x + pr.w * 0.14, pr.y + pr.h * 0.28) < 48 || dist(x, y, pr.x + pr.w * 0.86, pr.y + pr.h * 0.28) < 48) {
+          playSfx('plant');
+          api.particles.burst(x, y, 12, { kind: 'heart', colors: ['#ff9ec4', '#ffe17a', '#9be296'] });
+          return;
+        }
+
+        // 5. Sanden på borggården dammar mjukt där man trycker
+        playSfx('step');
+        puff(x, y);
       },
+
+      onMove() {},
+      onUp() {},
 
       draw(ctx, T, W, H) {
         const pr = layout(W, H);
-        const active = s.dragging || s.selected;
+        const t = target();
 
-        // Kistor uppe på borggården
+        // Kistor
         for (const p of s.pairs) {
-          if (!p.open && active === p) {
-            drawGlowRing(ctx, T, p.cx, p.cy - 24, 46, p.color);
-          }
+          if (!p.open && t === p) drawGlowRing(ctx, T, p.cx, p.cy - 30, 44, p.color);
           drawShadow(ctx, p.cx, p.cy + 4, 30, 8);
-          blit(ctx, p.open ? 'chest-open' : p.chestSprite, p.cx, p.cy, { h: 70 });
+          const sq = 1 + Math.sin(p.popT * Math.PI) * 0.12;
+          blit(ctx, p.open ? 'chest-open' : p.chestSprite, p.cx, p.cy, { h: 70 * sq });
           if (!p.open) {
-            drawShapeIcon(ctx, p.id, p.cx, p.cy - 72, 11, p.color);
+            drawShapeIcon(ctx, p.id, p.cx, p.cy - 76, 11, p.color);
           } else {
             const hop = Math.sin(T * 3.5 + p.cx) * 5 - Math.sin(p.popT * Math.PI) * 16;
-            ctx.save();
-            ctx.font = '32px system-ui, sans-serif';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(p.toy, p.cx, p.cy - 74 + hop);
-            ctx.restore();
+            drawIkon(ctx, p.toy, p.cx, p.cy - 80 + hop, 40);
           }
         }
 
-        // Gömställen (kruka, rosbuske, stenvalv) som vickar tydligt!
-        for (const p of s.pairs) {
-          if (!p.hid) continue;
-          const wig = Math.sin(T * 4.2 + p.hx) * 0.07;
+        // Grävplatsen (sandhög) + spåret dit
+        if (t) {
           ctx.save();
-          ctx.translate(p.hx, p.hy);
-          ctx.rotate(wig);
-          drawGlowRing(ctx, T, 0, -20, 32, 'rgba(255, 224, 120, 0.55)');
-          drawShadow(ctx, 0, 2, 24, 7);
-          if (p.hideKind === 'pot') {
-            ctx.fillStyle = '#cf7d4e'; ctx.strokeStyle = '#6f3e20'; ctx.lineWidth = 2.2;
-            ctx.beginPath(); ctx.ellipse(0, -18, 22, 20, 0, 0, TAU); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = '#de9062';
-            ctx.beginPath(); ctx.roundRect(-16, -38, 32, 9, 4); ctx.fill(); ctx.stroke();
-          } else if (p.hideKind === 'roses') {
-            ctx.strokeStyle = '#3b6a37'; ctx.lineWidth = 2;
-            for (const [bx, by, br] of [[-14, -14, 16], [14, -14, 16], [0, -24, 20]]) {
-              ctx.fillStyle = '#5eb05d'; ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.fill(); ctx.stroke();
-            }
-            for (const [rx, ry] of [[-12, -22], [10, -24], [0, -12]]) {
-              ctx.fillStyle = '#ff7ca8'; ctx.beginPath(); ctx.arc(rx, ry, 6, 0, TAU); ctx.fill();
-            }
-          } else {
-            ctx.fillStyle = '#a8a298'; ctx.strokeStyle = '#5c564c'; ctx.lineWidth = 2.2;
-            ctx.beginPath(); ctx.arc(0, -16, 26, Math.PI, TAU); ctx.lineTo(26, 0); ctx.lineTo(-26, 0); ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            ctx.fillStyle = '#4f483f';
-            ctx.beginPath(); ctx.arc(0, -12, 13, Math.PI, TAU); ctx.lineTo(13, 0); ctx.lineTo(-13, 0); ctx.closePath(); ctx.fill();
-          }
+          ctx.translate(t.dx, t.dy);
+          const ready = s.step >= s.trail.length && s.flyT === 0;
+          if (ready) drawGlowRing(ctx, T, 0, -10, 34, 'rgba(255, 214, 102, 0.8)');
+          drawShadow(ctx, 0, 4, 30, 8);
+          const h = 22 - s.dug * 5;
+          ctx.fillStyle = '#d9b77c'; ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.ellipse(0, 0, 30, Math.max(6, h), 0, Math.PI, TAU); ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#c49c5e';
+          for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(-16 + k * 11, -h * 0.4, 3, 0, TAU); ctx.fill(); }
           ctx.restore();
+          s.trail.forEach((p, i) => {
+            if (i < s.step) {
+              ctx.save(); ctx.globalAlpha = 0.35; drawIkon(ctx, 'tass', p.x, p.y, 26, { rot: p.rot, noTrack: true }); ctx.restore();
+              return;
+            }
+            const isNext = i === s.step;
+            if (isNext) drawGlowRing(ctx, T, p.x, p.y, 24, 'rgba(255, 210, 120, 0.85)');
+            const pulse = isNext ? 1 + Math.sin(T * 6) * 0.08 : 1;
+            ctx.save(); ctx.globalAlpha = isNext ? 1 : 0.6;
+            drawIkon(ctx, 'tass', p.x, p.y, 30 * pulse, { rot: p.rot });
+            ctx.restore();
+          });
+        }
+
+        // Nyckeln flyger i en båge från gropen till kistan; rävungen kikar upp och fnissar
+        if (t && s.flyT > 0) {
+          const k = 1 - s.flyT;
+          const kx = t.dx + (t.cx - t.dx) * k;
+          const ky = t.dy - 20 + (t.cy - 40 - (t.dy - 20)) * k - Math.sin(k * Math.PI) * 60;
+          blit(ctx, 'key', kx, ky + 20, { h: 40, rot: k * 6 });
+        }
+        if (s.foxT > 0 && t) {
+          const up = Math.sin(Math.min(1, s.foxT) * Math.PI);
+          blit(ctx, 'fox-baby', t.dx + 34, t.dy + 4 - up * 10, { h: 52 * up + 1, noTrack: true });
+        }
+        for (const f of s.puffs) {
+          ctx.save(); ctx.globalAlpha = f.t * 1.4; ctx.fillStyle = '#efe0bd';
+          ctx.beginPath(); ctx.arc(f.x, f.y - (0.5 - f.t) * 30, 10 + (0.5 - f.t) * 24, 0, TAU); ctx.fill(); ctx.restore();
         }
 
         // Båda systrarna
@@ -269,8 +313,8 @@ export const level09 = {
         if (api.won) {
           const d1 = api.gladjedans(T);
           const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.78, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.78, { ...d2, who: buddyId, scale: heroScale, face: -1 });
+          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
+          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
         } else {
           drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
             who: leadId, scale: heroScale, expr: s.heroExpr,
@@ -285,23 +329,11 @@ export const level09 = {
           });
         }
 
-        // Framtagna formnycklar
-        for (const p of s.pairs) {
-          if (p.hid || p.open) continue;
-          const held = s.dragging === p || s.selected === p;
-          drawGlowRing(ctx, T, p.kx, p.ky, 26, p.color);
-          drawShapeKey(ctx, p, p.kx, p.ky + (held ? -6 : Math.sin(T * 3 + p.hx) * 3), held ? 1.2 : 1);
-        }
-
-        // Pekhand
-        if (!api.won && (s.opened === 0 || s.idleT > 2.8)) {
-          const rev = s.pairs.find((p) => !p.hid && !p.open);
-          if (rev && !s.dragging) {
-            drawGuideHand(ctx, T, rev.kx, rev.ky, rev.cx, rev.cy - 24);
-          } else {
-            const h = s.pairs.find((p) => p.hid);
-            if (h) drawGuideHand(ctx, T, h.hx + 8, h.hy - 18);
-          }
+        // Pekhand: nästa avtryck, annars gropen
+        if (!api.won && t && s.flyT === 0 && ((s.opened === 0 && s.step === 0) || s.idleT > (s.step > 0 ? 1.2 : 2.2))) {
+          const n = s.trail[s.step];
+          if (n) drawGuideHand(ctx, T, n.x + 6, n.y + 6);
+          else drawGuideHand(ctx, T, t.dx + 6, t.dy - 4);
         }
       },
     };
