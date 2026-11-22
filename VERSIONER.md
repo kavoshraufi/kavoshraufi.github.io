@@ -2,6 +2,10 @@
 
 Appens synliga nummer och service workerns cache-namn kommer från samma konstant i `kvarnen-w7eiezn6sr/version.js` (`KVARNEN_APP_VERSION`). En utgåva 1.4 blir cache-namnet `kvarnen-test-pages-v4`.
 
+## 1.9
+
+Stor mobil- och speluppdatering av Nila & Norin – Äventyrsdalen. Alla tio banor har fått rundor med stegrad utmaning, tre meningsfulla stjärnor per bana (klarad, gömt mynt, hälsat på besökare), varierade kärnverb, handmålade ikoner i stället för emoji samt mjuk respons utan döda tryck. Dessutom mobilförbättringar: säkra zoner runt skärmkanter, stöd för orienteringsbyte mitt i bana, paus när fliken döljs, prioriterad ljud- och bildladdning för långsam uppkoppling, bredare brofästen i stående läge och HUD/stjärnor som hålls kvar på skärmen.
+
 ## 1.8
 
 Visuell puts i Nila & Norin – Äventyrsdalen. Trädgårdsmagin har en ren gräsmatta utan de målade rabatterna, fröpåsarna och vattenkannan som tidigare låg under de interaktiva objekten, och titeln sitter inte längre på en bädd. I Lilla Bagaren står gästerna på diskens framkant i stället för att sväva över glaskupan, och titeln har mer luft till ingrediensbrickan. Vinstknapparna håller sig på en rad även i 667×375.

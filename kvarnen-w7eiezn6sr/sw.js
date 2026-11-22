@@ -1,7 +1,7 @@
 /* Kvarnen (test) — versionerad cache under GitHub Pages-undermappen. */
 importScripts('./version.js');
 const VERSION = KVARNEN_CACHE;
-const KVARNEN_SW_STAMP = '1.8'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
+const KVARNEN_SW_STAMP = '1.9'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
 const PRECACHE = [
   "./",
   "./index.html",
@@ -71,6 +71,7 @@ const PRECACHE = [
   "./titlar/nila-norin/spel/delat/spar.js",
   "./titlar/nila-norin/spel/favicon.svg",
   "./titlar/nila-norin/spel/index.html",
+  "./titlar/nila-norin/spel/js/besok.js",
   "./titlar/nila-norin/spel/js/core.js",
   "./titlar/nila-norin/spel/js/levels/L01-rescue.js",
   "./titlar/nila-norin/spel/js/levels/L02-brook.js",
@@ -84,6 +85,7 @@ const PRECACHE = [
   "./titlar/nila-norin/spel/js/levels/L10-bakery.js",
   "./titlar/nila-norin/spel/js/main.js",
   "./titlar/nila-norin/spel/js/map.js",
+  "./titlar/nila-norin/spel/js/speltest.js",
   "./titlar/nila-norin/spel/konst/sprites.json",
   "./titlar/nila-norin/spel/ljud/bank.json",
   "./titlar/rostam-och-sohrab/bok/bok.bundle.js",
