@@ -2,7 +2,7 @@
 <html lang="sv">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0b1020">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -12,18 +12,14 @@
   <link rel="stylesheet" href="./css/spel.css">
 </head>
 <body>
-  <div class="vrid-skarm" data-testid="vrid-skarm">
-    <div>
-      <div class="vrid-ikon" aria-hidden="true"></div>
-      <p>Vrid telefonen</p>
-    </div>
-  </div>
-
   <button type="button" class="hoppa-intro" id="hoppa-intro" data-testid="hoppa-intro">Hoppa över</button>
 
   <div class="app-liggande">
-    <header class="topplist">
-      <h1>Drakis resa <span class="kicker">Ett andetag i taget</span></h1>
+    <aside class="topplist" id="drakis-meny" aria-label="Spelmeny" hidden>
+      <div class="meny-rad">
+        <h1>Drakis resa <span class="kicker">Ett andetag i taget</span></h1>
+        <button type="button" class="meny-stang" id="knapp-stang-meny" data-testid="stang-meny" aria-label="Stäng meny">✕</button>
+      </div>
       <div class="mixer" data-testid="mixer">
         <label>Musik <input id="vol-musik" type="range" min="0" max="1" step="0.01" value="0.8"></label>
         <label>Ljud <input id="vol-sfx" type="range" min="0" max="1" step="0.01" value="0.8"></label>
@@ -34,9 +30,17 @@
         <button type="button" class="primar" id="knapp-spara" data-testid="spara">Spara</button>
         <button type="button" id="knapp-fortsatt" data-testid="fortsatt">Fortsätt</button>
         <button type="button" id="knapp-nytt" data-testid="nytt">Nytt</button>
+        <button type="button" id="knapp-sparkod" data-testid="sparkod">Sparkod</button>
+        <button type="button" id="knapp-ljud" data-testid="ljud">Ljud på</button>
         <button type="button" id="knapp-helskarm" data-testid="helskarm">Helskärm</button>
       </div>
-    </header>
+    </aside>
+
+    <div id="drakis-shop" class="drakis-shop" data-testid="shop" hidden></div>
+
+    <div id="drakis-vinst" class="drakis-vinst" data-testid="vinst" hidden>
+      <button type="button" class="primar vinst-knapp" id="knapp-vinst-vidare" data-testid="vinst-vidare">Nästa dag →</button>
+    </div>
   </div>
 
   <script src="./studio/studiointro.js"></script>
