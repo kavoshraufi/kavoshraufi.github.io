@@ -1,6 +1,7 @@
 /* Referensmotor för Drakis resa – gemensam retro-motor kopplad till Kvarnens ljud och spar. */
 import { Ljudmotor, renderaOchMata } from '../delat/ljudmotor.js';
 import { Spar, monteraBekraftelse } from '../delat/spar.js';
+import { ST } from './speltest.js';
 
 export const ljud = new Ljudmotor({ storageKey: 'ak.drakis.volym', basUrl: '' });
 export const spar = new Spar({ nyckel: 'drakis-resa-referens', storageKey: 'ak.drakis-resa.referens', autoMs: 8000 });
@@ -11,11 +12,11 @@ export { renderaOchMata, monteraBekraftelse };
 'use strict';
 export const K = (() => {
   let W = 320, H = 180; const TS = 16;
-  const K = { W, H, TS, t: 0, held: {}, pressed: {}, manual: false, muted: false, portrait: false };
+  const K = { W, H, TS, t: 0, held: {}, pressed: {}, manual: false, muted: false, portrait: false, menyOpen: false, canvasScale: 1, canvasRect: { x: 0, y: 0, w: 320, h: 180 }, tapPos: null, playBottom: 0 };
   let fpsBuf = null;
   K.startFps = () => { fpsBuf = { t0: performance.now(), frames: 0, minDt: 1e9, last: performance.now() }; };
   K.stopFps = () => { if (!fpsBuf) return null; const ms = performance.now() - fpsBuf.t0; const out = { fps: fpsBuf.frames * 1000 / Math.max(1, ms), minFps: fpsBuf.frames ? 1000 / fpsBuf.minDt : 0, frames: fpsBuf.frames, ms }; fpsBuf = null; return out; };
-  const NAMES = ['left', 'right', 'up', 'down', 'a', 'b', 'start'];
+  const NAMES = ['left', 'right', 'up', 'down', 'a', 'b', 'start', 'gem'];
   const kb = {}, tp = {}, inj = {}, prevHeld = {};
   NAMES.forEach(n => { kb[n] = tp[n] = inj[n] = prevHeld[n] = false; K.held[n] = K.pressed[n] = false; });
   let screenTapQueued = false;
@@ -163,9 +164,26 @@ export const K = (() => {
   // Bilder med .hd = true är ritade i dubbel upplösning (2 riktiga px per spelpixel).
   K.sw = c => c.hd ? c.width / 2 : c.width;
   K.sh = c => c.hd ? c.height / 2 : c.height;
-  K.blit = (ctx, c, x, y, flip, sc = 1) => { const i = flip ? K.flip(c) : c; ctx.drawImage(i, Math.round(x * 2) / 2, Math.round(y * 2) / 2, K.sw(c) * sc, K.sh(c) * sc); };
+  K.blit = (ctx, c, x, y, flip, sc = 1) => {
+    const i = flip ? K.flip(c) : c;
+    const dw = Math.max(1, Math.round(K.sw(c) * sc));
+    const dh = Math.max(1, Math.round(K.sh(c) * sc));
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(i, Math.round(x), Math.round(y), dw, dh);
+  };
+  // Snap a sprite scale so the destination size is a whole logical pixel (nearest-neighbour, no subpixel tween).
+  K.snapScale = (c, sc) => {
+    if (!c || !sc) return sc || 1;
+    const sh = K.sh(c) || 1;
+    const dh = Math.max(1, Math.round(sh * sc));
+    return dh / sh;
+  };
   // Ritar en bild med fötterna/mitten nederst i (cx, bottom)
-  K.foot = (ctx, c, cx, bottom, flip, sc = 1) => K.blit(ctx, c, cx - K.sw(c) * sc / 2, bottom - K.sh(c) * sc, flip, sc);
+  K.foot = (ctx, c, cx, bottom, flip, sc = 1) => {
+    const dw = Math.max(1, Math.round(K.sw(c) * sc));
+    const dh = Math.max(1, Math.round(K.sh(c) * sc));
+    K.blit(ctx, c, Math.round(cx - dw / 2), Math.round(bottom - dh), flip, sc);
+  };
   // Figur med skugga, gunga, squash/stretch och lutning. origo = fötterna i (cx, bottom).
   K.figure = (ctx, c, cx, bottom, opt = {}) => {
     if (!c) return;
@@ -182,11 +200,11 @@ export const K = (() => {
       ctx.fillRect(x0 + 2, y0 - 1, Math.round(hw * 2) - 4, 1);
     }
     ctx.save();
-    ctx.translate(Math.round((cx + shift) * 2) / 2, Math.round((bottom - bob) * 2) / 2);
+    ctx.translate(Math.round(cx + shift), Math.round(bottom - bob));
     if (lean) ctx.rotate(lean);
     if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, -sw / 2, -sh, sw, sh);
+    ctx.drawImage(img, Math.round(-sw / 2), Math.round(-sh), Math.max(1, Math.round(sw)), Math.max(1, Math.round(sh)));
     ctx.restore();
   };
   K.img = {};
@@ -197,11 +215,12 @@ export const K = (() => {
     if (y === 0 && H > lh + 2) {
       const sc = H / lh;
       lw *= sc; lh *= sc; drawY = H - lh; pan = off * sc;
-      ctx.imageSmoothingEnabled = true;
     }
+    ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = alpha;
-    let k = Math.floor(pan / lw), x = k * lw - pan;
-    while (x < W) { ctx.drawImage((k & 1) ? K.flip(c) : c, Math.round(x * 2) / 2, drawY, lw, lh); x += lw; k++; }
+    const ilw = Math.max(1, Math.round(lw)), ilh = Math.max(1, Math.round(lh)), idy = Math.round(drawY);
+    let k = Math.floor(pan / ilw), x = k * ilw - Math.round(pan);
+    while (x < W) { ctx.drawImage((k & 1) ? K.flip(c) : c, Math.round(x), idy, ilw, ilh); x += ilw; k++; }
     ctx.globalAlpha = 1;
     ctx.imageSmoothingEnabled = false;
   };
@@ -221,7 +240,55 @@ export const K = (() => {
     im.src = assets[k];
   })));
   // Färgad variant av en bild (t.ex. för att få fler personer ur samma ark)
-  K.tint = (c, col, amt = 0.5, mode = 'color') => { const t = K.canvas(c.width, c.height), g = t.getContext('2d'); g.drawImage(c, 0, 0); g.globalCompositeOperation = mode; g.globalAlpha = amt; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'destination-in'; g.globalAlpha = 1; g.drawImage(c, 0, 0); t.hd = c.hd; return t; };
+  const outCache = new WeakMap();
+  K.outline = (c, col = [22, 18, 36]) => {
+    if (!c) return c;
+    let o = outCache.get(c);
+    if (o) return o;
+    const w = c.width, h = c.height, pad = 2;
+    o = K.canvas(w + pad * 2, h + pad * 2);
+    o.hd = c.hd;
+    try {
+      const sg = c.getContext('2d').getImageData(0, 0, w, h);
+      const sd = sg.data;
+      const og = o.getContext('2d');
+      const od = og.createImageData(w + pad * 2, h + pad * 2);
+      const dd = od.data;
+      const ow = w + pad * 2, oh = h + pad * 2;
+      const [cr, cg, cb] = col;
+      for (let y = 0; y < oh; y++) {
+        const sy = y - pad;
+        for (let x = 0; x < ow; x++) {
+          const sx = x - pad;
+          const di = (y * ow + x) * 4;
+          if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
+            const si = (sy * w + sx) * 4;
+            if (sd[si + 3] >= 90) {
+              dd[di] = sd[si]; dd[di + 1] = sd[si + 1]; dd[di + 2] = sd[si + 2]; dd[di + 3] = sd[si + 3];
+              continue;
+            }
+          }
+          let hit = false;
+          for (let dy = -2; dy <= 2 && !hit; dy++) {
+            const ny = sy + dy;
+            if (ny < 0 || ny >= h) continue;
+            for (let dx = -2; dx <= 2; dx++) {
+              if (dx * dx + dy * dy > 4) continue;
+              const nx = sx + dx;
+              if (nx >= 0 && nx < w && sd[(ny * w + nx) * 4 + 3] >= 120) { hit = true; break; }
+            }
+          }
+          if (hit) { dd[di] = cr; dd[di + 1] = cg; dd[di + 2] = cb; dd[di + 3] = 255; }
+        }
+      }
+      og.putImageData(od, 0, 0);
+    } catch (e) {
+      o.getContext('2d').drawImage(c, pad, pad);
+    }
+    outCache.set(c, o);
+    return o;
+  };
+    K.tint = (c, col, amt = 0.5, mode = 'color') => { const t = K.canvas(c.width, c.height), g = t.getContext('2d'); g.drawImage(c, 0, 0); g.globalCompositeOperation = mode; g.globalAlpha = amt; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'destination-in'; g.globalAlpha = 1; g.drawImage(c, 0, 0); t.hd = c.hd; return t; };
 
   // ---------- Pixeltypsnitt 5x7 med Å Ä Ö ----------
   const FONT = {
@@ -281,13 +348,22 @@ export const K = (() => {
   }
   K.norm = s => { s = String(s).toUpperCase(); let o = ''; for (const ch of s) o += MAP[ch] !== undefined ? MAP[ch] : ch; return o; };
   K.textW = (s, sc = 1) => K.norm(s).length * 6 * sc - sc;
-  // text(ctx, s, x, y, färg, {sc, align:'c'|'r', sh: skuggfärg})
+  // text(ctx, s, x, y, färg, {sc, align:'c'|'r', sh: skuggfärg, out: konturfärg})
   K.text = (ctx, s, x, y, col = '#fff', o = {}) => {
-    const sc = o.sc || 1; s = K.norm(s);
+    const sc = Math.max(1, Math.round(o.sc || 1)); s = K.norm(s);
     let w = s.length * 6 * sc - sc;
     if (o.align === 'c') x -= w / 2; else if (o.align === 'r') x -= w;
     x = Math.round(x); y = Math.round(y);
-    if (o.sh) K.text(ctx, s, x + sc, y + sc, o.sh, { sc });
+    ctx.imageSmoothingEnabled = false;
+    if (o.out) {
+      const d = Math.max(1, sc);
+      K.text(ctx, s, x - d, y, o.out, { sc });
+      K.text(ctx, s, x + d, y, o.out, { sc });
+      K.text(ctx, s, x, y - d, o.out, { sc });
+      K.text(ctx, s, x, y + d, o.out, { sc });
+    } else if (o.sh) {
+      K.text(ctx, s, x + sc, y + sc, o.sh, { sc });
+    }
     let cx = x;
     for (const ch of s) { if (ch !== ' ') { const gl = glyph(ch, col); ctx.drawImage(gl, cx, y - (gl.height - 7) * sc, 5 * sc, gl.height * sc); } cx += 6 * sc; }
   };
@@ -304,6 +380,7 @@ export const K = (() => {
   };
   K.rect = (ctx, x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
   K.panel = (ctx, x, y, w, h, bg = '#141428', bd = '#f4e9c8', bd2 = '#7a6a4a') => {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
     K.rect(ctx, x + 1, y, w - 2, h, bd2); K.rect(ctx, x, y + 1, w, h - 2, bd2);
     K.rect(ctx, x + 1, y + 1, w - 2, h - 2, bd); K.rect(ctx, x + 2, y + 2, w - 4, h - 4, bg);
   };
@@ -416,6 +493,7 @@ export const K = (() => {
     warn: t => { K.tone(196, t, 0.14, 'p50', 0.16, null, 140); K.tone(147, t + 0.08, 0.22, 'p50', 0.14, null, 80); K.noise(t, 0.22, 0.12, null, 350); K.tone(330, t + 0.18, 0.1, 'p25', 0.08, null, 220); }
   };
   K.sfx = name => {
+    ST?.sfx(name, !K.muted);
     if (K.muted) return;
     audio();
     const UI = { select: 1, ok: 1, talk: 1 };
@@ -466,7 +544,7 @@ export const K = (() => {
       songStep = (songStep + 1) % song.len; nextT += song.sp;
     }
   }
-  K.mute = (m) => { K.muted = m === undefined ? !K.muted : m; try { ljud.setMuted('master', K.muted); } catch (e) {} if (muteEl) muteEl.textContent = K.muted ? '🔇' : '🔊'; };
+  K.mute = (m) => { K.muted = m === undefined ? !K.muted : m; try { ljud.setMuted('master', K.muted); } catch (e) {} if (muteEl) muteEl.textContent = K.muted ? '🔇' : '🔊'; const lb = document.getElementById('knapp-ljud'); if (lb) lb.textContent = K.muted ? 'Ljud av' : 'Ljud på'; };
 
   // Uppläsning för små barn (om webbläsaren har svensk röst). Allt i try/catch.
   K.say = (txt) => {
@@ -521,31 +599,33 @@ export const K = (() => {
   };
 
   // ---------- Skärm, kontroller och huvudloop ----------
-  let cv, ctx, game, muteEl, padEl, aEl, bEl, stEl, wrap;
+  let cv, ctx, game, muteEl, padEl, aEl, bEl, gemEl, stEl, wrap, playCtrlsVis = true;
   const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
-    KeyZ: 'a', Space: 'a', KeyJ: 'a', KeyX: 'b', KeyK: 'b', ShiftLeft: 'b', Enter: 'start', Escape: 'start', KeyP: 'start' };
+    KeyZ: 'a', Space: 'a', KeyJ: 'a', KeyX: 'b', KeyK: 'b', ShiftLeft: 'b', KeyE: 'gem', KeyC: 'gem', ShiftRight: 'gem', Enter: 'start', Escape: 'start', KeyP: 'start' };
   function css() {
     const st = document.createElement('style');
-    st.textContent = `html,body{margin:0;height:100%;height:100dvh;height:-webkit-fill-available;background:#07070f;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-#rw{position:fixed;inset:0;overflow:hidden;font-family:system-ui,sans-serif;background:#07070f}body.touch.portrait #rw{background:linear-gradient(#07070f,#10101c)}
+    st.textContent = `html,body{margin:0;height:100%;height:100dvh;height:-webkit-fill-available;background:#07070f;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#rw{position:fixed;inset:0;overflow:hidden;font-family:"DrakisPixel",monospace;-webkit-font-smoothing:none;font-smooth:never;background:#07070f}body.touch.portrait #rw{background:linear-gradient(#07070f,#10101c)}
 #rw canvas{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;box-shadow:0 0 0 2px #22223a}
-.rb{position:absolute;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;border-radius:50%;
-background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizing:border-box;touch-action:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.rb.on{background:rgba(255,216,96,.55)}
-#rpad{position:absolute;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.3);box-sizing:border-box;touch-action:none}
-#rpad i{position:absolute;width:34%;height:34%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.4);box-sizing:border-box;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:14px}
-#rpad i.on{background:rgba(255,216,96,.6)}
-.rs{position:absolute;padding:4px 10px;border-radius:12px;font-size:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);color:#fff;touch-action:none;cursor:pointer}
-#kodpanel{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif;touch-action:auto;-webkit-user-select:text;user-select:text}
+.rb{position:absolute;display:flex;align-items:center;justify-content:center;color:#fff;font-family:"DrakisPixel",monospace;font-weight:normal;font-size:20px;line-height:1;border-radius:50%;
+background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizing:border-box;touch-action:none;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:none}
+.rb.on,.rb:active{background:rgba(12,16,36,.88);border-color:#ffd860;color:#ffd860;transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(0,0,0,.65);transition:none}
+#rpad{position:absolute;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.3);box-sizing:border-box;touch-action:none;transition:none}
+#rpad.on{background:rgba(10,14,30,.36);border-color:rgba(255,216,96,.72)}
+#rpad i{position:absolute;width:34%;height:34%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.4);box-sizing:border-box;border-radius:0;display:flex;align-items:center;justify-content:center;color:#fff;font-family:"DrakisPixel",monospace;font-style:normal;font-weight:normal;font-size:20px;line-height:1;transition:none}
+#rpad i.on{background:rgba(12,16,36,.9);border-color:#ffd860;color:#ffd860;transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(0,0,0,.65);transition:none}
+.rs{position:absolute;display:flex;align-items:center;justify-content:center;padding:0 6px;min-width:48px;min-height:48px;border-radius:0;font-family:"DrakisPixel",monospace;font-size:20px;line-height:1;font-weight:normal;letter-spacing:0;text-transform:uppercase;background:rgba(18,22,42,.82);border:2px solid rgba(244,233,200,.65);color:#fff;box-sizing:border-box;touch-action:none;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:none}
+.rs.on,.rs:active{background:rgba(8,10,24,.94);border-color:#ffd860;color:#ffd860;transform:translateY(2px);transition:none}
+#kodpanel{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px;font-family:"DrakisPixel",monospace;touch-action:auto;-webkit-user-select:text;user-select:text}
 #kodpanel[hidden]{display:none}
-#kodpanel .kodbox{background:#16141f;color:#f4efe2;border:2px solid #c8a860;border-radius:16px;max-width:440px;width:100%;padding:18px;box-shadow:0 12px 40px #000}
-#kodpanel h2{margin:0 0 8px;font-size:18px;color:#ffd65a}
-#kodpanel p{margin:0 0 10px;font-size:13px;line-height:1.45;opacity:.95}
-#kodpanel textarea{width:100%;box-sizing:border-box;min-height:90px;border-radius:10px;border:1px solid #c8a860;background:#0c0b14;color:#fff8e0;padding:10px;font:12px/1.4 ui-monospace,Menlo,monospace;resize:vertical;-webkit-user-select:text;user-select:text}
+#kodpanel .kodbox{background:#16141f;color:#f4efe2;border:2px solid #c8a860;border-radius:0;max-width:440px;width:100%;padding:18px;box-shadow:0 12px 40px #000}
+#kodpanel h2{margin:0 0 8px;font-size:20px;color:#ffd65a;font-weight:normal}
+#kodpanel p{margin:0 0 10px;font-size:10px;line-height:1.6;opacity:.95}
+#kodpanel textarea{width:100%;box-sizing:border-box;min-height:90px;border-radius:0;border:2px solid #c8a860;background:#0c0b14;color:#fff8e0;padding:10px;font:10px/1.6 "DrakisPixel",monospace;resize:vertical;-webkit-user-select:text;user-select:text}
 #kodpanel .kodbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-#kodpanel button{border:0;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer;background:#ffd65a;color:#1a1430;min-height:40px;font-family:system-ui,sans-serif}
-#kodpanel button.ghost{background:transparent;color:#ffd65a;border:1px solid #ffd65a}
-#kodpanel #kodmsg{min-height:18px;color:#ffd65a;font-size:13px;font-weight:700}`;
+#kodpanel button{border:2px solid #f4e9c8;border-radius:0;padding:10px 14px;font-weight:normal;cursor:pointer;background:#ffd65a;color:#1a1430;min-height:40px;font-family:"DrakisPixel",monospace;font-size:10px;text-transform:uppercase}
+#kodpanel button.ghost{background:transparent;color:#ffd65a;border:2px solid #ffd65a}
+#kodpanel #kodmsg{min-height:18px;color:#ffd65a;font-size:10px;font-weight:normal}`;
     document.head.appendChild(st);
   }
   function buildPad() {
@@ -570,7 +650,8 @@ background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizi
       };
       const up = (e) => {
         const p = pt(e);
-        if (p.pointerId != null) ids.delete(p.pointerId); else ids.delete('t');
+        if (e.touches && e.touches.length === 0) ids.clear();
+        else if (p.pointerId != null) ids.delete(p.pointerId); else ids.delete('t');
         if (!ids.size && onUp) onUp(p);
       };
       el.addEventListener('pointerdown', down);
@@ -591,18 +672,32 @@ background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizi
       const dz = 0.12; tp.left = dx < -dz && Math.abs(dx) > Math.abs(dy) * 0.45; tp.right = dx > dz && Math.abs(dx) > Math.abs(dy) * 0.45;
       tp.up = dy < -dz && Math.abs(dy) > Math.abs(dx) * 0.45; tp.down = dy > dz && Math.abs(dy) > Math.abs(dx) * 0.45;
       for (const k in parts) parts[k].classList.toggle('on', tp[k]);
+      padEl.classList.toggle('on', !!(tp.left || tp.right || tp.up || tp.down));
     }
-    function padClear() { tp.left = tp.right = tp.up = tp.down = false; for (const k in parts) parts[k].classList.remove('on'); }
+    function padClear() { tp.left = tp.right = tp.up = tp.down = false; for (const k in parts) parts[k].classList.remove('on'); padEl.classList.remove('on'); }
     bindPress(padEl, e => { padPtr.add(e.pointerId != null ? e.pointerId : 't'); padSet(e); }, () => { padPtr.clear(); padClear(); }, e => { if (padPtr.size) padSet(e); });
     function btn(label, key, cls, onTap) {
       const b = document.createElement('div'); b.className = cls || 'rb'; b.textContent = label; wrap.appendChild(b);
-      bindPress(b, () => { if (key) { tp[key] = true; b.classList.add('on'); } if (onTap) onTap(); },
-        () => { if (key) { tp[key] = false; b.classList.remove('on'); } });
+      bindPress(b, () => { if (key) tp[key] = true; b.classList.add('on'); if (onTap) onTap(); },
+        () => { if (key) tp[key] = false; b.classList.remove('on'); });
       return b;
     }
-    aEl = btn('A', 'a'); bEl = btn('B', 'b'); stEl = btn('MENY', 'start', 'rs');
-    muteEl = btn('🔊', null, 'rs', () => K.mute());
-    kodEl = btn('Kod', null, 'rs', () => openKod()); kodEl.setAttribute('aria-label', 'Sparkod');
+    ST?.attach(cv, wrap);
+    K.toggleMeny = (force) => {
+      const m = document.getElementById('drakis-meny');
+      if (!m) { tp.start = true; setTimeout(() => { tp.start = false; }, 60); return; }
+      const next = force === undefined ? m.hidden : !!force;
+      m.hidden = !next;
+      K.menyOpen = next;
+      if (game && game.S) game.S.paused = next;
+      ST?.event(next ? 'menu-open' : 'menu-close');
+    };
+    aEl = btn('A', 'a'); aEl.setAttribute('role', 'button'); aEl.setAttribute('aria-label', 'Hoppa');
+    bEl = btn('B', 'b'); bEl.setAttribute('role', 'button'); bEl.setAttribute('aria-label', 'Blås');
+    gemEl = btn('', 'gem', 'rb rgem empty'); gemEl.id = 'rgem'; gemEl.setAttribute('role', 'button'); gemEl.setAttribute('aria-label', 'Aktivera ädelsten'); gemEl.innerHTML = '<img class="gem-px" alt="" width="32" height="32" src="' + emptyGemIcon() + '">';
+    stEl = btn('MENY', null, 'rs', () => K.toggleMeny()); stEl.setAttribute('role', 'button'); stEl.setAttribute('aria-label', 'Meny');
+    muteEl = btn('🔊', null, 'rs', () => K.mute()); muteEl.hidden = true;
+    kodEl = btn('Kod', null, 'rs', () => openKod()); kodEl.setAttribute('aria-label', 'Sparkod'); kodEl.hidden = true;
     window.addEventListener('keydown', e => {
       if (K.kodOpen && /^(INPUT|TEXTAREA|BUTTON)$/.test((e.target && e.target.tagName) || '')) return;
       audio(); const k = KEYMAP[e.code]; if (k) { kb[k] = true; e.preventDefault(); } if (e.code === 'KeyM') K.mute();
@@ -612,7 +707,29 @@ background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizi
       const k = KEYMAP[e.code]; if (k) { kb[k] = false; e.preventDefault(); }
     });
     window.addEventListener('blur', () => { NAMES.forEach(n => { kb[n] = false; }); padClear(); });
-    bindPress(cv, () => { screenTapQueued = true; });
+    bindPress(cv, (p) => {
+      screenTapQueued = true;
+      const r = cv.getBoundingClientRect();
+      if (p && r.width > 0) {
+        K.tapPos = {
+          x: (p.clientX - r.left) / Math.max(0.01, K.canvasScale),
+          y: (p.clientY - r.top) / Math.max(0.01, K.canvasScale)
+        };
+      }
+    });
+    let autoPaused = false;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        NAMES.forEach(n => { kb[n] = false; }); padClear();
+        if (ac && ac.state === 'running') ac.suspend().catch(() => {});
+        if (game && game.S && game.S.scene === 'play' && !game.S.paused && !K.menyOpen) {
+          game.S.paused = true; autoPaused = true;
+        }
+      } else {
+        if (autoPaused) { if (game && game.S) game.S.paused = false; autoPaused = false; }
+        if (ac && ac.state === 'suspended' && !K.muted) ac.resume().catch(() => {});
+      }
+    });
     const lock = (e) => { if (e.cancelable) e.preventDefault(); };
     wrap.addEventListener('touchmove', lock, { passive: false });
     document.addEventListener('touchmove', lock, { passive: false });
@@ -629,7 +746,7 @@ background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizi
     requestAnimationFrame(() => { layout(); requestAnimationFrame(layout); });
     setTimeout(layout, 120);
   }
-  function place(el, x, y, w, h) { el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; if (el.className === 'rb') el.style.fontSize = (w * 0.38) + 'px'; }
+  function place(el, x, y, w, h) { el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px'; el.style.width = Math.round(w) + 'px'; el.style.height = Math.round(h) + 'px'; if (el.classList && el.classList.contains('rb')) { const fs = el.id === 'rgem' ? 10 : Math.max(10, Math.round(w * 0.38 / 10) * 10); el.style.fontSize = fs + 'px'; } }
   function portraitView(aw, ah) {
     let w = 320, s = aw / w;
     if (s < 1) { w = Math.max(256, Math.round(aw / 16) * 16); s = aw / w; }
@@ -645,18 +762,50 @@ background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizi
     ctx = cv.getContext('2d');
     ctx.imageSmoothingEnabled = false;
   }
+  let safeProbe = null;
+  function getSafe() {
+    if (!safeProbe) {
+      safeProbe = document.createElement('div');
+      safeProbe.style.cssText = 'position:fixed;inset:0;padding:var(--safe-top,env(safe-area-inset-top,0px)) var(--safe-right,env(safe-area-inset-right,0px)) var(--safe-bottom,env(safe-area-inset-bottom,0px)) var(--safe-left,env(safe-area-inset-left,0px));pointer-events:none;visibility:hidden;z-index:-1';
+      document.body.appendChild(safeProbe);
+    }
+    const cs = getComputedStyle(safeProbe);
+    return {
+      top: parseFloat(cs.paddingTop) || 0,
+      right: parseFloat(cs.paddingRight) || 0,
+      bottom: parseFloat(cs.paddingBottom) || 0,
+      left: parseFloat(cs.paddingLeft) || 0,
+    };
+  }
+  K.toScreenX = (lx) => K.canvasRect.x + lx * K.canvasScale;
+  K.toScreenY = (ly) => K.canvasRect.y + ly * K.canvasScale;
+  K.ctrlCenter = (which) => {
+    const el = which === 'a' ? aEl : which === 'b' ? bEl : which === 'gem' ? gemEl : which === 'start' ? stEl : which === 'canvas' ? cv : padEl;
+    if (!el) return { x: (window.innerWidth || 320) / 2, y: (window.innerHeight || 180) / 2 };
+    const r = el.getBoundingClientRect();
+    let dx = 0, dy = 0;
+    if (which === 'right') dx = r.width * 0.32;
+    else if (which === 'left') dx = -r.width * 0.32;
+    else if (which === 'up') dy = -r.height * 0.32;
+    else if (which === 'down') dy = r.height * 0.32;
+    return { x: r.left + r.width / 2 + dx, y: r.top + r.height / 2 + dy };
+  };
   function layout() {
     if (!cv) return;
     const vw = window.innerWidth || 320, vh = window.innerHeight || 180;
+    const safe = getSafe();
+    const x0 = safe.left, y0 = safe.top;
+    const uw = Math.max(100, vw - safe.left - safe.right);
+    const uh = Math.max(100, vh - safe.top - safe.bottom);
     const touch = document.body.classList.contains('touch');
     const portrait = vh > vw * 1.05;
     K.portrait = !!(touch && portrait);
     document.body.classList.toggle('portrait', K.portrait);
     document.body.classList.toggle('land', !!(touch && !portrait));
-    let aw = vw, ah = vh, ctrl = 0;
+    let aw = uw, ah = uh, ctrl = 0;
     if (touch && portrait) {
-      ctrl = Math.round(Math.max(200, Math.min(240, vh * 0.26)));
-      ah = Math.max(200, vh - ctrl);
+      ctrl = Math.round(Math.max(196, Math.min(236, uh * 0.28)));
+      ah = Math.max(200, uh - ctrl);
       const v = portraitView(aw, ah);
       setView(v.w, v.h);
     } else {
@@ -664,40 +813,154 @@ background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.45);box-sizi
     }
     if (aw < 16 || ah < 16) { requestAnimationFrame(layout); return; }
     let s = Math.min(aw / W, ah / H);
-    if (s >= 2) s = Math.floor(s * 2) / 2;
+    if (s >= 1.25) s = Math.max(1, Math.floor(s));
+    else if (s >= 1) s = 1;
     if (!(s > 0.05) || !isFinite(s)) return;
-    const cw = W * s, ch = H * s, cx = (vw - cw) / 2, cy = touch && portrait ? 0 : (vh - ch) / 2;
+    const cw = Math.round(W * s), ch = Math.round(H * s);
+    const cx = x0 + Math.round((uw - cw) / 2);
+    const cy = touch && portrait ? y0 : y0 + Math.round((uh - ch) / 2);
+    K.canvasScale = s;
+    K.canvasRect = { x: cx, y: cy, w: cw, h: ch };
+    ST?.setTilePx(TS * s);
     if (touch && portrait) {
-      const top = cy + ch, area = Math.max(ctrl, vh - top);
-      const pad = Math.min(180, Math.max(150, Math.min(area - 28, vw * 0.48)));
-      place(padEl, 10, top + (area - pad) / 2, pad, pad);
-      const bs = Math.min(84, Math.max(64, pad * 0.48));
-      place(aEl, vw - bs - 12, top + (area - pad) / 2 + pad * 0.1, bs, bs);
-      place(bEl, vw - bs * 2 - 24, top + (area - pad) / 2 + pad * 0.1 + bs * 0.55, bs, bs);
-      stEl.style.left = (vw / 2 - 26) + 'px'; stEl.style.top = (top + area - 36) + 'px';
-      muteEl.style.left = (vw / 2 - 48) + 'px'; muteEl.style.top = (top + 6) + 'px';
-      if (kodEl) { kodEl.style.left = (vw / 2 + 8) + 'px'; kodEl.style.top = (top + 6) + 'px'; }
-      [padEl, aEl, bEl].forEach(e => e.style.opacity = '1');
-    } else {
-      const side = cx, pad = Math.min(176, Math.max(110, Math.min(side - 12, vh * 0.46)));
-      const overlay = side < pad + 10;
-      place(padEl, Math.max(8, (side - pad) / 2), vh - pad - 12, pad, pad);
-      const bs = Math.min(80, Math.max(60, pad * 0.5)), rx = overlay ? vw - bs * 2 - 30 : vw - side + Math.max(8, (side - bs * 2 - 16) / 2);
-      place(bEl, rx, vh - bs - 16, bs, bs); place(aEl, rx + bs + 12, vh - bs * 1.6 - 16, bs, bs);
-      [padEl, aEl, bEl].forEach(e => e.style.opacity = '1');
-      stEl.style.left = (vw / 2 - 26) + 'px'; stEl.style.top = (vh - 36) + 'px';
+      const top = cy + ch, area = Math.max(ctrl, y0 + uh - top);
+      const menyW = 64, menyH = 48, gap = 8;
+      const bs = Math.min(76, Math.max(58, Math.min(uw * 0.2, area * 0.36)));
+      const bLeft = x0 + uw - bs * 2 - 16;
+      const menyX = Math.max(x0 + 8, Math.min(bLeft - menyW - gap, x0 + Math.round((uw - menyW) * 0.58)));
+      place(stEl, menyX, top + 6, menyW, menyH);
+      const padMax = Math.max(120, menyX - gap - (x0 + 8));
+      const pad = Math.min(160, Math.max(124, Math.min(area - 16, uw * 0.42, padMax)));
+      const padY = top + Math.max(0, (area - pad) / 2);
+      place(padEl, x0 + 8, padY, pad, pad);
+      place(aEl, x0 + uw - bs - 8, top + (area - pad) / 2 + pad * 0.06, bs, bs);
+      place(bEl, x0 + uw - bs * 2 - 16, top + (area - pad) / 2 + pad * 0.06 + bs * 0.42, bs, bs);
+      const gs = 48;
+      place(gemEl, Math.round(menyX + (menyW - gs) / 2), Math.round(top + 6 + menyH + 10), gs, gs);
       if (muteEl) muteEl.style.display = 'none';
-      if (kodEl) { kodEl.style.left = (vw / 2 + 30) + 'px'; kodEl.style.top = (vh - 36) + 'px'; }
+      if (kodEl) kodEl.style.display = 'none';
+      K.playBottom = 0;
+      [padEl, aEl, bEl, gemEl].forEach(e => { e.style.display = playCtrlsVis ? 'flex' : 'none'; e.style.opacity = '1'; });
+      stEl.style.display = 'flex'; stEl.style.opacity = '1';
+    } else {
+      // Landscape touch: prefer the leftover side margins so the pad/A/B never sit on the dirt.
+      // If the margins are too narrow (e.g. 667x375), lift the playfield and make the controls
+      // slightly transparent so the walking surface stays visible above them.
+      const side = (uw - cw) / 2;
+      let pad = Math.min(160, Math.max(96, Math.min(side - 8, uh * 0.48)));
+      const inSides = touch && side >= 96;
+      if (!inSides) pad = Math.min(120, Math.max(100, Math.round(uh * 0.30)));
+      const bs = Math.min(72, Math.max(56, Math.round((inSides ? Math.min(side - 8, pad * 0.5) : pad * 0.48) / 2) * 2));
+      const padX = inSides ? x0 + Math.round((side - pad) / 2) : x0 + 6;
+      const padY = inSides ? y0 + Math.round((uh - pad) / 2) : y0 + uh - pad - 6;
+      place(padEl, Math.round(padX), Math.round(padY), pad, pad);
+      const stack = inSides && (bs * 2 + 8 > side - 4);
+      const rx = inSides
+        ? x0 + uw - side + Math.round((side - (stack ? bs : bs * 2 + 8)) / 2)
+        : x0 + uw - bs * 2 - 16;
+      const bTop = inSides ? y0 + uh - Math.round((uh - bs) * 0.5) - bs : y0 + uh - bs - 6;
+      if (stack) {
+        const stackH = bs * 2 + 8;
+        const midY = y0 + Math.round((uh - stackH) / 2);
+        place(aEl, Math.round(rx), Math.round(midY), bs, bs);
+        place(bEl, Math.round(rx), Math.round(midY + bs + 8), bs, bs);
+      } else {
+        place(bEl, Math.round(rx), Math.round(inSides ? bTop + Math.round(bs * 0.42) : bTop), bs, bs);
+        place(aEl, Math.round(rx + bs + 8), Math.round(inSides ? bTop - Math.round(bs * 0.08) : y0 + uh - bs * 1.48 - 8), bs, bs);
+      }
+      const gs = 48;
+      const gemX = inSides ? Math.round(x0 + uw - side + (side - gs) / 2) : Math.round(rx);
+      const gemY = inSides ? Math.round(y0 + 58) : Math.round(Math.max(y0 + 58, bTop - gs - 10));
+      place(gemEl, gemX, gemY, gs, gs);
+      if (side >= 66 || !touch) {
+        place(stEl, x0 + uw - 70, y0 + 6, 64, 48);
+      } else {
+        place(stEl, x0 + Math.round((uw - 64) / 2), y0 + 4, 64, 48);
+      }
+      const overlap = !inSides && touch;
+      if (overlap) {
+        const cover = Math.max(0, (cy + ch) - padY + 6);
+        K.playBottom = Math.max(0, Math.ceil(cover / s));
+        [padEl, aEl, bEl, gemEl].forEach(e => { if (e) e.style.opacity = '0.68'; });
+      } else {
+        K.playBottom = 0;
+        [padEl, aEl, bEl, gemEl].forEach(e => { if (e) e.style.opacity = '1'; });
+      }
+      if (muteEl) muteEl.style.display = 'none';
+      if (kodEl) kodEl.style.display = 'none';
+      [padEl, aEl, bEl, gemEl].forEach(e => { e.style.display = playCtrlsVis ? 'flex' : 'none'; });
+      stEl.style.display = 'flex'; stEl.style.opacity = '1';
     }
-    cv.style.width = cw + 'px'; cv.style.height = ch + 'px'; cv.style.left = cx + 'px'; cv.style.top = cy + 'px';
+    cv.style.width = Math.round(cw) + 'px'; cv.style.height = Math.round(ch) + 'px'; cv.style.left = Math.round(cx) + 'px'; cv.style.top = Math.round(cy) + 'px';
   }
+  K.setPlayCtrlsVisible = (vis) => {
+    playCtrlsVis = !!vis;
+    if (!padEl) return;
+    [padEl, aEl, bEl, gemEl].forEach(e => { if (e) e.style.display = playCtrlsVis ? 'flex' : 'none'; });
+  };
+  let emptyGemUrl = '';
+  function emptyGemIcon() {
+    if (emptyGemUrl) return emptyGemUrl;
+    const c = K.canvas(32, 32);
+    c.hd = true;
+    const ctx = c.getContext('2d');
+    // Nedtonad diamant (samma 16×16-mönster som ädelstenarna, grå palett).
+    const pat = [
+      '......OOOO......',
+      '.....OMMMMO.....',
+      '....OHHMMLLO....',
+      '...OHHHMMLLLO...',
+      '..OHHHHMMLLLLLO.',
+      '.OOOHHHMMLLLLOO.',
+      'OLLOOHHMMLLOOHLO',
+      'OLLOHHHMMLLOHHLO',
+      '.OOOHHHMMLLLLOO.',
+      '..OHHHMMMLLLLO..',
+      '...OHHMMMLLLO...',
+      '....OHMMLLLO....',
+      '.....OMLLLO.....',
+      '......OMLO......',
+      '.......OO.......',
+      '................'
+    ];
+    const pal = { O: '#1a1a22', H: '#c8c8d0', M: '#7a7a86', L: '#3e3e4a' };
+    for (let y = 0; y < 16; y++) {
+      const row = pat[y] || '';
+      for (let x = 0; x < 16; x++) {
+        const col = pal[row[x]];
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(x * 2, y * 2, 2, 2);
+      }
+    }
+    ctx.fillStyle = '#e4e4ec';
+    ctx.fillRect(10, 8, 2, 2);
+    try { emptyGemUrl = c.toDataURL(); } catch (e) { emptyGemUrl = ''; }
+    return emptyGemUrl;
+  }
+  K.emptyGemIcon = emptyGemIcon;
+  K.setGemBtn = (opt = {}) => {
+    if (!gemEl) return;
+    gemEl.classList.toggle('empty', !!opt.empty);
+    gemEl.classList.toggle('ready', !opt.empty && !opt.active);
+    gemEl.classList.toggle('active', !!opt.active);
+    if (opt.color) gemEl.style.setProperty('--gem-col', opt.color);
+    else gemEl.style.removeProperty('--gem-col');
+    gemEl.setAttribute('aria-label', opt.name ? ('Aktivera ' + opt.name) : 'Aktivera ädelsten');
+    const icon = opt.icon || (opt.empty ? emptyGemIcon() : '');
+    if (icon) {
+      gemEl.innerHTML = '<img class="gem-px" alt="" width="32" height="32" src="' + icon + '">' + (opt.count > 1 ? '<span class="gem-cnt">x' + opt.count + '</span>' : '');
+    } else {
+      gemEl.innerHTML = '';
+    }
+  };
   function readInput() {
     NAMES.forEach(n => { const h = kb[n] || tp[n] || inj[n]; K.pressed[n] = h && !prevHeld[n]; K.held[n] = h; prevHeld[n] = h; });
     K.screenTap = screenTapQueued; screenTapQueued = false;
   }
   function step() {
     readInput(); K.t++;
-    if (K.kodOpen) return;
+    if (K.kodOpen || K.menyOpen) return;
     try { game.update(); } catch (e) { K.err = e; console.error(e); throw e; }
   }
   function render() { ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false; game.draw(ctx); }

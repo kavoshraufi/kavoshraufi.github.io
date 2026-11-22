@@ -335,8 +335,8 @@ export class Ljudmotor {
       await this.loadBank(
         bank,
         filer.map((f) => ({
-          ogg: this.basUrl + f.ogg,
-          m4a: this.basUrl + f.m4a,
+          ogg: (typeof f.ogg === 'string' && f.ogg.startsWith('data:') ? f.ogg : this.basUrl + f.ogg),
+          m4a: (typeof f.m4a === 'string' && f.m4a.startsWith('data:') ? f.m4a : this.basUrl + f.m4a),
         })),
       );
     }
