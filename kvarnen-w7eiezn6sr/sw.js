@@ -1,7 +1,7 @@
 /* Kvarnen (test) — versionerad cache under GitHub Pages-undermappen. */
 importScripts('./version.js');
 const VERSION = KVARNEN_CACHE;
-const KVARNEN_SW_STAMP = '1.9'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
+const KVARNEN_SW_STAMP = '2.0'; // spegling av KVARNEN_APP_VERSION; ändra i version.js
 const PRECACHE = [
   "./",
   "./index.html",
@@ -56,12 +56,14 @@ const PRECACHE = [
   "./titlar/drakis-resa/spel/delat/spar.js",
   "./titlar/drakis-resa/spel/delat/stil.css",
   "./titlar/drakis-resa/spel/delat/typsnitt/OFL-CormorantGaramond.txt",
+  "./titlar/drakis-resa/spel/delat/typsnitt/OFL-NotoNastaliqUrdu.txt",
   "./titlar/drakis-resa/spel/favicon.svg",
   "./titlar/drakis-resa/spel/index.html",
   "./titlar/drakis-resa/spel/js/assets.js",
   "./titlar/drakis-resa/spel/js/motor.js",
   "./titlar/drakis-resa/spel/js/musik.js",
   "./titlar/drakis-resa/spel/js/spel.js",
+  "./titlar/drakis-resa/spel/js/speltest.js",
   "./titlar/drakis-resa/spel/ljud/bank.json",
   "./titlar/drakis-resa/spel/studio/studiointro.js",
   "./titlar/nila-norin/index.html",

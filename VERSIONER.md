@@ -1,6 +1,14 @@
 # Versioner — Kvarnen (test)
 
-Appens synliga nummer och service workerns cache-namn kommer från samma konstant i `kvarnen-w7eiezn6sr/version.js` (`KVARNEN_APP_VERSION`). En utgåva 1.4 blir cache-namnet `kvarnen-test-pages-v4`.
+Appens synliga nummer och service workerns cache-namn kommer från samma konstant i `kvarnen-w7eiezn6sr/version.js` (`KVARNEN_APP_VERSION`). Från och med 2.0 blir en utgåva cache-namnet `kvarnen-test-pages-v` plus versionsnumret med bindestreck (`2.0` → `kvarnen-test-pages-v2-0`), så att telefoner hämtar den nya service workern. Äldre 1.x-utgåvor hette `kvarnen-test-pages-v` plus sista siffran (1.4 → `v4`).
+
+## 2.0
+
+Ny utgåva av både Nila & Norin – Äventyrsdalen och Drakis resa.
+
+I Nila & Norin styrs systrarna av en gemensam HeroStage i alla tio banor, utan klonade figurer. Sorteringsstugan visar inte längre en tom önskebubbla och flickorna står på golvet. Musikgläntan och Skattjakten har kortare stillestånd, och grävning, gång och kanter (bland annat i skattjakten och molnbanan) beter sig mer trovärdigt.
+
+I Drakis resa används pixelfonten överallt, knappar har nedtryckta lägen, dialoger köas och bossen krymper i diskreta pixelsteg. Spelet har mer juice och tydligare konturer, pekkontrollerna ligger i sidomarginalerna i liggande läge, och ädelstensbutiken säljer fem boosts. Drakis storlek är låst till DRAKIS_SCALE 1.0.
 
 ## 1.9
 
