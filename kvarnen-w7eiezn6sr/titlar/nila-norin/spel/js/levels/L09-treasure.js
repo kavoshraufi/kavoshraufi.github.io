@@ -2,6 +2,7 @@ import {
   TAU, clamp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawStarPath, playSfx, playNote, drawIkon,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level09 = {
@@ -35,7 +36,7 @@ export const level09 = {
       dug: 0,          // grävtryck hittills
       flyT: 0,         // nyckeln flyger till kistan
       foxT: 0,         // rävungen tittar upp ur gropen
-      puffs: [],
+      puffs: [], clods: [], digShake: 0, stage: createHeroStage(),
       trail: [],
       pairs: [
         { id: 'circle', chestSprite: 'chest-circle', color: '#f08b49', toy: 'krona', open: false, cx: 0, cy: 0, dx: 0, dy: 0, popT: 0 },
@@ -48,8 +49,8 @@ export const level09 = {
     function layout(W, H) {
       const pr = api.playRect(W, H);
       const land = W >= H;
-      const chestXs = land ? [0.27, 0.50, 0.73] : [0.23, 0.50, 0.77];
-      const chestY = pr.y + pr.h * (land ? 0.40 : 0.36);
+      const chestXs = land ? [0.31, 0.52, 0.73] : [0.23, 0.50, 0.77];
+      const chestY = pr.y + pr.h * (land ? 0.47 : 0.41);
       const digXs = land ? [0.24, 0.50, 0.76] : [0.24, 0.50, 0.76];
       const digY = pr.y + pr.h * (land ? 0.66 : 0.62);
       s.pairs.forEach((p, i) => {
@@ -73,8 +74,8 @@ export const level09 = {
           s.trail.push({ x: clamp(x, pr.x + 40, pr.x + pr.w - 40), y: clamp(y, pr.y + pr.h * 0.52, pr.y + pr.h * 0.8), rot: Math.atan2(t.dy - sy, t.dx - sx) + Math.PI / 2 + (k % 2 ? 0.25 : -0.25) });
         }
       }
-      s.heroPos = [pr.x + pr.w * (land ? 0.08 : 0.16), pr.y + pr.h * (land ? 0.86 : 0.90)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.92 : 0.84), pr.y + pr.h * (land ? 0.86 : 0.90)];
+      s.heroPos = [pr.x + pr.w * (land ? 0.10 : 0.18), pr.y + pr.h * 0.89];
+      s.buddyPos = [pr.x + pr.w * (land ? 0.90 : 0.82), pr.y + pr.h * 0.89];
       return pr;
     }
 
@@ -127,16 +128,50 @@ export const level09 = {
       api.particles.burst(p.cx, p.cy - 24, 18, { kind: 'star', colors: [p.color, '#ffe17a', '#ffffff'] });
       api.setProgress(s.opened);
       s.cur++; s.step = 0; s.dug = 0;
-      if (s.opened >= s.pairs.length) api.win();
+      if (s.opened >= s.pairs.length) { reactHeroStage(s.stage, 'both', 'skratt', 0.9); api.win(); }
     }
 
-    function puff(x, y) {
+    function puff(x, y, digBurst = false) {
       s.puffs.push({ x, y, t: 0.5 });
-      api.particles.burst(x, y, 6, { colors: ['#e7d3a8', '#cdb58a', '#ffffff'], speed: 60, lift: 30 });
+      api.particles.burst(x, y, digBurst ? 10 : 6, { colors: ['#e7d3a8', '#cdb58a', '#8a6a3a', '#ffffff'], speed: digBurst ? 95 : 60, lift: 45 });
+      if (digBurst) {
+        s.digShake = 1;
+        for (let k = 0; k < 8; k++) {
+          const ang = -Math.PI * (0.18 + Math.random() * 0.64);
+          const spd = 95 + Math.random() * 115;
+          s.clods.push({
+            x: x + (Math.random() - 0.5) * 18,
+            y: y - 4,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 40,
+            r: 3.5 + Math.random() * 3.5,
+            col: k % 2 ? '#b88d50' : '#8a6534',
+            t: 0.65,
+          });
+        }
+      }
+    }
+
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * 0.89;
+    }
+    function standPoints(W, H) {
+      layout(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroPos[0], gy],
+        buddy: [s.buddyPos[0], gy],
+        winLead: [W * 0.34, gy],
+        winBuddy: [W * 0.66, gy],
+        leadFace: 1, buddyFace: -1,
+      };
     }
 
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
@@ -145,12 +180,16 @@ export const level09 = {
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.4);
         if (s.foxT > 0) s.foxT = Math.max(0, s.foxT - dt * 0.7);
         for (const p of s.pairs) if (p.popT > 0) p.popT = Math.max(0, p.popT - dt * 2.5);
+        if (s.digShake > 0) s.digShake = Math.max(0, s.digShake - dt * 4);
         for (const f of s.puffs) f.t -= dt;
         s.puffs = s.puffs.filter((f) => f.t > 0);
+        for (const c of s.clods) { c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 420 * dt; c.t -= dt; }
+        s.clods = s.clods.filter((c) => c.t > 0);
         if (s.flyT > 0) {
-          s.flyT = Math.max(0, s.flyT - dt * 1.9);
+          s.flyT = Math.max(0, s.flyT - dt * 1.65);
           if (s.flyT === 0) openChest(target());
         }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -173,12 +212,13 @@ export const level09 = {
           if (s.step >= s.trail.length && dist(x, y, t.dx, t.dy - 10) < 44) {
             s.dug++;
             playSfx('plant');
-            puff(t.dx, t.dy - 6);
+            puff(t.dx, t.dy - 6, true);
             if (s.dug >= GRAV) {
               playSfx('star');
-              s.flyT = 1;
+              s.flyT = 1.35;
               s.foxT = 1;
               s.heroJump = 0.6;
+              api.particles.burst(t.dx, t.dy - 14, 16, { kind: 'star', colors: ['#ffe17a', '#ffffff', t.color] });
             }
             return;
           }
@@ -237,9 +277,15 @@ export const level09 = {
           return;
         }
 
-        // 5. Sanden på borggården dammar mjukt där man trycker
-        playSfx('step');
-        puff(x, y);
+        // 5. Sanden & borggårdens stenar klingar mjukt där man trycker
+        if (y < pr.y + pr.h * 0.38) {
+          playSfx('bird');
+          playNote(5, 0.24);
+          api.particles.burst(x, y, 8, { kind: 'star', colors: ['#ffe17a', '#ffffff'] });
+        } else {
+          playNote(Math.floor((x / Math.max(1, W)) * 6) % 6, 0.24);
+          puff(x, y);
+        }
       },
 
       onMove() {},
@@ -256,10 +302,10 @@ export const level09 = {
           const sq = 1 + Math.sin(p.popT * Math.PI) * 0.12;
           blit(ctx, p.open ? 'chest-open' : p.chestSprite, p.cx, p.cy, { h: 70 * sq });
           if (!p.open) {
-            drawShapeIcon(ctx, p.id, p.cx, p.cy - 76, 11, p.color);
+            drawShapeIcon(ctx, p.id, p.cx, p.cy - 62, 11, p.color);
           } else {
             const hop = Math.sin(T * 3.5 + p.cx) * 5 - Math.sin(p.popT * Math.PI) * 16;
-            drawIkon(ctx, p.toy, p.cx, p.cy - 80 + hop, 40);
+            drawIkon(ctx, p.toy, p.cx, p.cy - 64 + hop, 36);
           }
         }
 
@@ -270,9 +316,15 @@ export const level09 = {
           const ready = s.step >= s.trail.length && s.flyT === 0;
           if (ready) drawGlowRing(ctx, T, 0, -10, 34, 'rgba(255, 214, 102, 0.8)');
           drawShadow(ctx, 0, 4, 30, 8);
-          const h = 22 - s.dug * 5;
+          const shk = Math.sin(s.digShake * Math.PI) * 0.14;
+          ctx.scale(1 + shk, 1 - shk * 0.7);
+          const h = Math.max(5, 22 - s.dug * 5.5);
+          if (s.dug > 0) {
+            ctx.fillStyle = '#6b4b26';
+            ctx.beginPath(); ctx.ellipse(0, 2, 16 + s.dug * 3, 6 + s.dug * 1.4, 0, 0, TAU); ctx.fill();
+          }
           ctx.fillStyle = '#d9b77c'; ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.ellipse(0, 0, 30, Math.max(6, h), 0, Math.PI, TAU); ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.ellipse(0, 0, 30, h, 0, Math.PI, TAU); ctx.closePath(); ctx.fill(); ctx.stroke();
           ctx.fillStyle = '#c49c5e';
           for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(-16 + k * 11, -h * 0.4, 3, 0, TAU); ctx.fill(); }
           ctx.restore();
@@ -290,12 +342,26 @@ export const level09 = {
           });
         }
 
-        // Nyckeln flyger i en båge från gropen till kistan; rävungen kikar upp och fnissar
+        // Nyckeln poppar upp ur gropen (1.35 -> 0.95) och flyger sedan i båge till kistan (0.95 -> 0)
         if (t && s.flyT > 0) {
-          const k = 1 - s.flyT;
-          const kx = t.dx + (t.cx - t.dx) * k;
-          const ky = t.dy - 20 + (t.cy - 40 - (t.dy - 20)) * k - Math.sin(k * Math.PI) * 60;
-          blit(ctx, 'key', kx, ky + 20, { h: 40, rot: k * 6 });
+          if (s.flyT > 0.95) {
+            const pop = 1 - (s.flyT - 0.95) / 0.40;
+            const ky = t.dy - 4 - Math.sin(pop * Math.PI * 0.65) * 42;
+            drawGlowRing(ctx, T, t.dx, ky, 26, 'rgba(255, 232, 120, 0.85)');
+            blit(ctx, 'key', t.dx, ky + 14, { h: 42 * (0.65 + 0.45 * pop), rot: Math.sin(pop * 12) * 0.25 });
+          } else {
+            const k = 1 - s.flyT / 0.95;
+            const kx = t.dx + (t.cx - t.dx) * k;
+            const ky = t.dy - 36 + (t.cy - 40 - (t.dy - 36)) * k - Math.sin(k * Math.PI) * 64;
+            blit(ctx, 'key', kx, ky + 20, { h: 40, rot: k * 6 });
+          }
+        }
+        for (const c of s.clods) {
+          ctx.save();
+          ctx.globalAlpha = clamp(c.t / 0.35, 0, 1);
+          ctx.fillStyle = c.col;
+          ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, TAU); ctx.fill();
+          ctx.restore();
         }
         if (s.foxT > 0 && t) {
           const up = Math.sin(Math.min(1, s.foxT) * Math.PI);
@@ -306,31 +372,21 @@ export const level09 = {
           ctx.beginPath(); ctx.arc(f.x, f.y - (0.5 - f.t) * 30, 10 + (0.5 - f.t) * 24, 0, TAU); ctx.fill(); ctx.restore();
         }
 
-        // Båda systrarna
+        // Båda systrarna på borggårdens stenläggning (fri från fontänen vid vinst)
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
-        const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.14;
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
-            who: leadId, scale: heroScale, expr: s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'idle',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 26 : 0, face: 1,
-          });
-          drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-            who: buddyId, scale: heroScale * 0.9,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'cheer',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 24 : 0, face: -1,
-          });
+        const heroScale = Math.min(W, H) < 460 ? 1.18 : 1.30;
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon, leadPose: 'idle', buddyPose: 'cheer',
+        });
 
         // Pekhand: nästa avtryck, annars gropen
-        if (!api.won && t && s.flyT === 0 && ((s.opened === 0 && s.step === 0) || s.idleT > (s.step > 0 ? 1.2 : 2.2))) {
+        if (!api.levelWon && t && s.flyT === 0 && ((s.opened === 0 && s.step === 0) || s.idleT > (s.dug > 0 || s.step > 0 ? 0.7 : 2.0))) {
           const n = s.trail[s.step];
           if (n) drawGuideHand(ctx, T, n.x + 6, n.y + 6);
           else drawGuideHand(ctx, T, t.dx + 6, t.dy - 4);

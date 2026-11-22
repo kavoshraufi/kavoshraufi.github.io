@@ -2,6 +2,7 @@ import {
   TAU, clamp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawHeartPath, playSfx, playNote, bgPoint,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level10 = {
@@ -32,12 +33,13 @@ export const level10 = {
       buddyJump: 0,
       cake: { stage: 0, icing: null, berry: false, star: false, bounce: 0, x: 0, y: 0 },
       dragCake: false,
+      stage: createHeroStage(),
       // Rundor: nya hungriga skogsvänner köar vid disken varje runda.
       guests: [
         ['butterfly', 'ladybug', 'bird', 'bear'],
         ['fox', 'bunny', 'hedge', 'owl'],
         ['bunny-baby', 'fox-baby', 'owl-baby', 'hedge-baby'],
-      ][((api.round || 1) - 1) % 3].map((id, i) => ({ id, got: false, cakeSprite: null, wantIcing: ICINGS[(i + (api.round || 1)) % 3].id, dream: false, x: 0, y: 0, hop: 0 })),
+      ][((api.round || 1) - 1) % 3].map((id, i) => ({ id, got: false, cakeSprite: null, wantIcing: ICINGS[(i + (api.round || 1)) % 3].id, dream: false, x: 0, y: 0, hop: 0, leaving: false, leaveT: 0, leaveDir: i < 2 ? -1 : 1 })),
       btns: [],
     };
 
@@ -69,8 +71,8 @@ export const level10 = {
           { kind: 'berry', sprite: 'berry', x: pr.x + pr.w * trayXs[4], y: trayY },
           { kind: 'star', sprite: 'star', x: pr.x + pr.w * trayXs[5], y: trayY },
         ];
-        s.heroPos = [pr.x + pr.w * 0.04, pr.y + pr.h * 0.86];
-        s.buddyPos = [pr.x + pr.w * 0.96, pr.y + pr.h * 0.86];
+        s.heroPos = [pr.x + pr.w * 0.08, pr.y + pr.h * 0.83];
+        s.buddyPos = [pr.x + pr.w * 0.92, pr.y + pr.h * 0.83];
       } else {
         const gxs = [0.18, 0.40, 0.60, 0.82];
         const gy = pr.y + pr.h * 0.30;
@@ -94,8 +96,8 @@ export const level10 = {
           { kind: 'berry', sprite: 'berry', x: pr.x + pr.w * trayXs[4], y: trayY },
           { kind: 'star', sprite: 'star', x: pr.x + pr.w * trayXs[5], y: trayY },
         ];
-        s.heroPos = [pr.x + pr.w * 0.22, pr.y + pr.h * 0.90];
-        s.buddyPos = [pr.x + pr.w * 0.78, pr.y + pr.h * 0.90];
+        s.heroPos = [pr.x + pr.w * 0.20, pr.y + pr.h * 0.91];
+        s.buddyPos = [pr.x + pr.w * 0.80, pr.y + pr.h * 0.91];
       }
       return pr;
     }
@@ -136,6 +138,8 @@ export const level10 = {
     function serveGuest(g) {
       if (g.got || s.cake.stage < 2) return;
       g.got = true;
+      g.leaving = true;
+      g.leaveT = 0;
       g.cakeSprite = s.cake.icing || 'cake-pink';
       g.dream = s.cake.icing === g.wantIcing;
       if (g.dream) { playSfx('pling'); api.particles.burst(g.x, g.y - 46, 16, { kind: 'star', colors: ['#ffe272', '#ff9ec4', '#88dbff'] }); }
@@ -149,6 +153,7 @@ export const level10 = {
       s.heroExprT = 1.1;
       s.heroJump = 1;
       s.buddyJump = 1;
+      reactHeroStage(s.stage, 'both', 'skratt', 0.85);
       api.particles.burst(g.x, g.y - 24, 18, { kind: 'heart', colors: ['#ff88aa', '#ffe17a', '#ffffff'] });
       api.setProgress(s.served);
       if (s.served >= s.guests.length) {
@@ -156,8 +161,26 @@ export const level10 = {
       }
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * (W >= H ? 0.83 : 0.88);
+    }
+    function standPoints(W, H) {
+      layout(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroPos[0], gy],
+        buddy: [s.buddyPos[0], gy],
+        winLead: [W * 0.42, gy],
+        winBuddy: [W * 0.58, gy],
+        leadFace: 1, buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
@@ -165,7 +188,11 @@ export const level10 = {
         if (s.heroJump > 0) s.heroJump = Math.max(0, s.heroJump - dt * 2.4);
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.4);
         if (s.cake.bounce > 0) s.cake.bounce = Math.max(0, s.cake.bounce - dt * 4);
-        for (const g of s.guests) if (g.hop > 0) g.hop = Math.max(0, g.hop - dt * 2.4);
+        for (const g of s.guests) {
+          if (g.hop > 0) g.hop = Math.max(0, g.hop - dt * 2.4);
+          if (g.leaving && g.leaveT < 1.25) g.leaveT = Math.min(1.25, g.leaveT + dt * 0.85);
+        }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -244,43 +271,57 @@ export const level10 = {
       draw(ctx, T, W, H) {
         const pr = layout(W, H);
 
-        // Djurgäster vid bageridiset
+        // Djurgäster vid bageridiset — verklighetstrogna proportioner + hoppande avmarsch när de fått sin tårta
+        const GUEST_H = {
+          butterfly: 28, ladybug: 26, bird: 40,
+          'bunny-baby': 42, 'hedge-baby': 40, 'fox-baby': 44, 'owl-baby': 42,
+          hedge: 50, bunny: 54, owl: 56, fox: 68, bear: 82,
+        };
         for (const g of s.guests) {
+          const leaveProg = g.leaving ? clamp((g.leaveT - 0.35) / 0.85, 0, 1) : 0;
+          const alpha = g.leaving ? clamp(1 - (g.leaveT - 0.92) / 0.32, 0, 1) : 1;
+          if (alpha <= 0.01) continue;
+          const gx = g.x + g.leaveDir * leaveProg * 185;
+          const walkHop = leaveProg > 0 ? Math.abs(Math.sin(leaveProg * Math.PI * 3.5)) * 16 : 0;
+          const gh = GUEST_H[g.id] || 52;
+
+          ctx.save();
+          ctx.globalAlpha = alpha;
           const readyToServe = s.cake.stage >= 2 && !g.got;
-          if (readyToServe) drawGlowRing(ctx, T, g.x, g.y - 24, 38, 'rgba(255, 224, 112, 0.78)');
-          const bob = g.hop > 0 ? -Math.sin(g.hop * Math.PI) * 18 : Math.sin(T * 2.5 + g.x) * 2;
-          drawShadow(ctx, g.x, g.y + 4, 24, 6);
-          const guestH = { butterfly: 54, ladybug: 46, bird: 62, bear: 66 };
-          blit(ctx, g.id, g.x, g.y + bob, { h: guestH[g.id] || 58 });
+          if (readyToServe) drawGlowRing(ctx, T, gx, g.y - gh * 0.45, Math.max(28, gh * 0.6), 'rgba(255, 224, 112, 0.78)');
+          const bob = (g.hop > 0 ? -Math.sin(g.hop * Math.PI) * 18 : Math.sin(T * 2.5 + g.x) * 2) - walkHop;
+          drawShadow(ctx, gx, g.y + 4, Math.max(14, gh * 0.36), 5);
+          blit(ctx, g.id, gx, g.y + bob, { h: gh, face: leaveProg > 0 ? g.leaveDir : 1 });
           if (!g.got && !api.won) {
             ctx.save();
-            ctx.translate(g.x + 22, g.y - 68 + Math.sin(T * 2.5 + g.x) * 3);
+            ctx.translate(gx + 18, g.y - gh - 14 + Math.sin(T * 2.5 + g.x) * 3);
             ctx.fillStyle = 'rgba(255, 252, 242, 0.92)';
             ctx.strokeStyle = 'rgba(154, 118, 66, 0.45)';
             ctx.lineWidth = 1.6;
-            ctx.beginPath(); ctx.ellipse(0, 0, 16, 13, 0, 0, TAU); ctx.fill(); ctx.stroke();
-            blit(ctx, g.wantIcing, 0, 9, { h: 20, noTrack: true });
+            ctx.beginPath(); ctx.ellipse(0, 0, 14, 11.5, 0, 0, TAU); ctx.fill(); ctx.stroke();
+            blit(ctx, g.wantIcing, 0, 7, { h: 16, noTrack: true });
             ctx.restore();
           }
           if (g.got) {
-            blit(ctx, g.cakeSprite, g.x + 24, g.y + 10, { h: 36 });
+            blit(ctx, g.cakeSprite, gx + g.leaveDir * 16, g.y + bob - 4, { h: 21 });
             ctx.save();
-            ctx.translate(g.x, g.y - 70 + Math.sin(T * 3 + g.x) * 4);
+            ctx.translate(gx, g.y + bob - gh - 12);
             ctx.fillStyle = '#ff7da4';
-            drawHeartPath(ctx, 9);
+            drawHeartPath(ctx, 8);
             ctx.fill();
             ctx.restore();
           }
+          ctx.restore();
         }
 
         // Tårtfat i mitten
         if (!api.won) {
-          drawShadow(ctx, s.standX, s.standY + 6, 46, 11);
+          drawShadow(ctx, s.standX, s.standY + 5, 36, 9);
           ctx.save();
           ctx.fillStyle = '#fff9ec';
           ctx.strokeStyle = '#c49d68';
-          ctx.lineWidth = 2.4;
-          ctx.beginPath(); ctx.ellipse(s.standX, s.standY, 48, 13, 0, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.lineWidth = 2.2;
+          ctx.beginPath(); ctx.ellipse(s.standX, s.standY, 38, 10, 0, 0, TAU); ctx.fill(); ctx.stroke();
           ctx.restore();
         }
 
@@ -290,43 +331,33 @@ export const level10 = {
             ctx.save();
             ctx.fillStyle = 'rgba(253, 247, 234, 0.92)';
             ctx.strokeStyle = 'rgba(154, 118, 66, 0.45)';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(b.x, b.y, 26, 0, TAU); ctx.fill(); ctx.stroke();
+            ctx.lineWidth = 1.8;
+            ctx.beginPath(); ctx.arc(b.x, b.y, 22, 0, TAU); ctx.fill(); ctx.stroke();
             ctx.restore();
-            blit(ctx, b.sprite, b.x, b.y + 16, { h: 34 });
+            blit(ctx, b.sprite, b.x, b.y + 12, { h: 25 });
           }
         }
 
-        // Båda systrarna
+        // Båda systrarna — står stadigt på bagerigolvet (aldrig svävande i glaskupan)
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
-        const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.14;
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
-            who: leadId, scale: heroScale, expr: s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'idle',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 26 : 0, face: 1,
-          });
-          drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-            who: buddyId, scale: heroScale * 0.9,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'cheer',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 24 : 0, face: -1,
-          });
+        const heroScale = Math.min(W, H) < 460 ? 1.24 : 1.36;
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon, leadPose: 'idle', buddyPose: 'idle',
+        });
 
-        // Tårtan under bakning / dragning
+        // Tårtan under bakning / dragning (proportionerlig mot systrarna)
         if (!api.won && s.cake.stage >= 1) {
-          const sc = (s.dragCake ? 1.14 : 1) + Math.sin(s.cake.bounce * Math.PI) * 0.16;
+          const sc = (s.dragCake ? 1.12 : 1) + Math.sin(s.cake.bounce * Math.PI) * 0.14;
           const sp = s.cake.icing || 'cake-base';
-          blit(ctx, sp, s.cake.x, s.cake.y + 12, { h: 68 * sc });
-          if (s.cake.berry) blit(ctx, 'berry', s.cake.x - 12, s.cake.y - 26, { h: 24 * sc });
-          if (s.cake.star) blit(ctx, 'star', s.cake.x + 12, s.cake.y - 28, { h: 26 * sc });
+          blit(ctx, sp, s.cake.x, s.cake.y + 8, { h: 48 * sc });
+          if (s.cake.berry) blit(ctx, 'berry', s.cake.x - 9, s.cake.y - 20, { h: 16 * sc });
+          if (s.cake.star) blit(ctx, 'star', s.cake.x + 9, s.cake.y - 21, { h: 17 * sc });
         }
 
         // Pekhand
