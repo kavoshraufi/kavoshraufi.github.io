@@ -167,6 +167,9 @@ function syncHud() {
   btnBook.classList.toggle('hidden', !onMap);
   levelTitleEl.classList.toggle('hidden', onMap || levelWon);
   progressBarEl.classList.toggle('hidden', onMap || !curLevelDef || levelWon);
+  levelTitleEl.hidden = onMap || levelWon;
+  progressBarEl.hidden = onMap || !curLevelDef || levelWon;
+  if (levelWon) progressBarEl.innerHTML = '';
   winBarEl.classList.toggle('hidden', onMap || !levelWon);
   winStarsEl.classList.toggle('hidden', onMap || !levelWon || !senasteStjarnor);
   if (!onMap && levelWon && senasteStjarnor) renderWinStars();
@@ -290,7 +293,8 @@ function buildApi() {
     get W() { return W; },
     get H() { return H; },
     get sister() { return save.sister; },
-    get won() { return levelWon || roundSwitchT > 0; }, // under rundbyte: stoppa vidare delmål (musik kraschade annars på SONGS[round])
+    get won() { return levelWon || roundSwitchT > 0; },
+    get levelWon() { return levelWon; }, // under rundbyte: stoppa vidare delmål (musik kraschade annars på SONGS[round])
     get round() { return round; },
     get rounds() { return roundsOf(curLevelDef); },
     particles,
@@ -521,20 +525,30 @@ window.__nn2 = {
 function drawRoundBanner(c, t) {
   const R = roundsOf(curLevelDef);
   const a = Math.min(1, t / 0.35, (1.6 - t) / 0.2);
-  const y = H * 0.3 - (1 - Math.min(1, (1.6 - t) / 0.3)) * 30;
+  const y = H * 0.28 - (1 - Math.min(1, (1.6 - t) / 0.3)) * 22;
   c.save();
   c.globalAlpha = Math.max(0, a);
-  c.font = `800 ${Math.round(Math.min(34, H * 0.08))}px Nunito, system-ui, sans-serif`;
+  const fsz = Math.round(Math.min(38, H * 0.09));
+  c.font = `800 ${fsz}px Nunito, system-ui, sans-serif`;
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   const txt = round === R ? 'Sista rundan!' : `Runda ${round} av ${R}`;
-  const w = c.measureText(txt).width + 44;
-  c.fillStyle = 'rgba(255, 248, 228, 0.92)';
-  c.strokeStyle = 'rgba(154, 118, 66, 0.5)';
-  c.lineWidth = 3;
-  c.beginPath(); c.roundRect(W / 2 - w / 2, y - 26, w, 52, 26); c.fill(); c.stroke();
-  c.fillStyle = '#7a4f1d';
-  c.fillText(txt, W / 2, y + 1);
+  const w = c.measureText(txt).width + 64;
+  const g = c.createRadialGradient(W / 2, y, 6, W / 2, y, w * 0.58);
+  g.addColorStop(0, 'rgba(46, 30, 14, 0.30)');
+  g.addColorStop(0.65, 'rgba(46, 30, 14, 0.12)');
+  g.addColorStop(1, 'rgba(46, 30, 14, 0)');
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(W / 2, y, w * 0.55, fsz * 0.9, 0, 0, Math.PI * 2); c.fill();
+  c.shadowColor = 'rgba(38, 22, 8, 0.62)';
+  c.shadowBlur = 10;
+  c.shadowOffsetY = 2;
+  c.strokeStyle = 'rgba(78, 46, 18, 0.72)';
+  c.lineWidth = 4.5;
+  c.lineJoin = 'round';
+  c.strokeText(txt, W / 2, y);
+  c.fillStyle = '#fff6dd';
+  c.fillText(txt, W / 2, y);
   c.restore();
 }
 
@@ -555,6 +569,7 @@ function frame(now) {
     drawBgPlate(ctx, W, H, curLevelDef.bg, curLevelDef.tint || '#d8ccb2');
     tickRounds(dt);
     curLevelState.update(dt, W, H);
+    ST?.setGround(curLevelState.groundY ? curLevelState.groundY(W, H) : null, levelWon);
     curLevelState.draw(ctx, T, W, H);
     besok.update(dt, W, H, getPlayRect(W, H), !levelWon && roundSwitchT <= 0);
     besok.draw(ctx, T);

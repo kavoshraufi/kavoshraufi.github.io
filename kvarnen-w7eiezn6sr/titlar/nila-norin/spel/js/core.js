@@ -307,39 +307,152 @@ export function drawShadow(ctx, x, y, rx, ry, alpha = 0.22) {
 
 export function drawHero(ctx, T, x, y, opt = {}) {
   const who = opt.who || save.sister || 'nila';
-  const expr = opt.expr || 'glad';
+  const ph = who === 'norin' ? 1.85 : 0;
+  let expr = opt.expr || 'glad';
   const pose = opt.pose || 'idle';
   const scale = (opt.scale || 1) * (who === 'nila' ? 0.96 : 1);
   let sx = opt.sx || 1, sy = opt.sy || 1;
-  const breath = 1 + Math.sin(T * 2.5) * 0.03;
+  const breath = 1 + Math.sin(T * 2.4 + ph) * 0.032;
+  const idleSway = (pose === 'idle' || pose === 'cheer') ? Math.sin(T * 1.45 + ph) * 0.026 : 0;
+  const idleShift = (pose === 'idle' || pose === 'cheer') ? Math.sin(T * 1.15 + ph) * 2.0 : 0;
+  const blinkCyc = (T + ph * 1.2) % 4.1;
+  const isBlink = blinkCyc > 3.94 && pose !== 'jump' && pose !== 'dans';
+  if (expr === 'glad' && (pose === 'idle' || pose === 'cheer')) {
+    const moodCyc = (T + ph * 2.1) % 7.5;
+    if (moodCyc > 6.4) expr = 'busig';
+    else if (moodCyc > 3.2 && moodCyc < 3.9) expr = 'stolt';
+  }
   if (pose === 'idle' || pose === 'cheer') { sy *= breath; sx *= 2 - breath; }
+  if (isBlink) { sy *= 0.965; sx *= 1.03; }
   if (pose === 'jump') { sy *= 1.1; sx *= 0.9; }
   if (pose === 'land') { sy *= 0.86; sx *= 1.14; }
   let bob = 0;
-  if (pose === 'walk') bob = -Math.abs(Math.sin((opt.phase || 0) * TAU)) * 7;
-  if (pose === 'cheer') bob = -2 + Math.sin(T * 8) * 3;
+  if (pose === 'walk') bob = -Math.abs(Math.sin((opt.phase || 0) * TAU)) * 8;
+  if (pose === 'cheer') bob = -2 + Math.sin(T * 5.2 + ph) * 3.5;
   if (pose === 'jump') bob = -4;
   if (pose === 'dans') bob = -6 + Math.sin(T * 14) * 5;
   bob += opt.bob || 0;
-  const x2 = x + (opt.dx || 0);
-  drawShadow(ctx, x2, y + 2, 20 * scale * sx, 6 * scale);
+  const x2 = x + (opt.dx || 0) + idleShift;
+  const shadowScale = Math.max(0.55, 1 + bob * 0.008);
+  drawShadow(ctx, x2, y + 2, 21 * scale * sx * shadowScale, 6 * scale * shadowScale);
+  const rot = (opt.rot || 0) + idleSway;
   const slot = SLOT[who];
   if (slot && slot.ok && slot.img) {
     const iw = slot.img.width, ih = slot.img.height, fw = iw / 7, fh = ih;
     const idx = Math.max(0, EXPR.indexOf(expr));
     const dw = 86 * scale, dh = 86 * scale * (fh / fw);
-    ST?.hero(who, x2, y + bob, dw * 0.55 * Math.abs(sx), dh * 0.78 * sy, pose);
+    ST?.hero(who, x2, y + bob, dw * 0.55 * Math.abs(sx), dh * 0.78 * sy, pose, y);
     ctx.save();
     ctx.translate(x2, y);
-    if (opt.rot) ctx.rotate(opt.rot);
+    if (rot) ctx.rotate(rot);
     ctx.scale((opt.face || 1) * sx, sy);
     ctx.drawImage(keyedSheet(slot), idx * fw, 0, fw, fh, -dw / 2, -dh + bob, dw, dh);
     ctx.restore();
     return;
   }
   const fr = EXPR_FRAME[expr] || 'glad';
-  ST?.hero(who, x2, y + bob, 50 * scale, 112 * scale, pose);
-  blit(ctx, `${who}-${fr}`, x2, y, { scale, h: 112, face: opt.face || 1, sx, sy, bob, rot: opt.rot, noTrack: true });
+  ST?.hero(who, x2, y + bob, 50 * scale, 112 * scale, pose, y);
+  blit(ctx, `${who}-${fr}`, x2, y, { scale, h: 112, face: opt.face || 1, sx, sy, bob, rot, noTrack: true });
+}
+
+/* ---------- Gemensam scenregi för systrarna (aldrig statiska/dubbletter) ---------- */
+export function createHeroStage(leadX = 0, leadY = 0, buddyX = 0, buddyY = 0, leadFace = 1, buddyFace = -1) {
+  return {
+    lead: { x: leadX, y: leadY, face: leadFace, jump: 0, expr: 'glad', exprT: 0, walkPhase: 0, moving: false, init: false },
+    buddy: { x: buddyX, y: buddyY, face: buddyFace, jump: 0, expr: 'glad', exprT: 0, walkPhase: 0, moving: false, init: false },
+    winT: 0,
+  };
+}
+
+export function reactHeroStage(st, who = 'both', expr = 'skratt', jump = 0.65) {
+  if (!st) return;
+  if (who === 'lead' || who === 'both') {
+    st.lead.jump = Math.max(st.lead.jump, jump);
+    st.lead.expr = expr;
+    st.lead.exprT = Math.max(st.lead.exprT, 0.85);
+  }
+  if (who === 'buddy' || who === 'both') {
+    st.buddy.jump = Math.max(st.buddy.jump, jump * 0.85);
+    st.buddy.expr = expr;
+    st.buddy.exprT = Math.max(st.buddy.exprT, 0.85);
+  }
+}
+
+export function updateHeroStage(st, dt, opt) {
+  const { won, pts, syncPlay = true, speed = 280 } = opt;
+  for (const h of [st.lead, st.buddy]) {
+    if (h.jump > 0) h.jump = Math.max(0, h.jump - dt * 2.3);
+    if (h.exprT > 0) { h.exprT -= dt; if (h.exprT <= 0) h.expr = 'glad'; }
+  }
+  if (!st.lead.init) {
+    st.lead.x = pts.lead[0]; st.lead.y = pts.lead[1]; st.lead.init = true;
+  }
+  if (!st.buddy.init) {
+    st.buddy.x = pts.buddy[0]; st.buddy.y = pts.buddy[1]; st.buddy.init = true;
+  }
+  if (won) {
+    st.winT += dt;
+    const stepOne = (h, target, endFace) => {
+      const dx = target[0] - h.x, dy = target[1] - h.y;
+      const dd = Math.hypot(dx, dy);
+      if (dd > 6) {
+        h.moving = true;
+        h.walkPhase += dt * 4.2;
+        const effSpeed = won ? Math.max(speed, 620) : speed;
+        const step = Math.min(dd, effSpeed * dt);
+        h.x += (dx / dd) * step;
+        h.y += (dy / dd) * step;
+        if (Math.abs(dx) > 4) h.face = dx >= 0 ? 1 : -1;
+      } else {
+        h.x = target[0]; h.y = target[1];
+        h.moving = false;
+        h.face = endFace;
+      }
+    };
+    stepOne(st.lead, pts.winLead, 1);
+    stepOne(st.buddy, pts.winBuddy, -1);
+  } else {
+    st.winT = 0;
+    st.lead.moving = false;
+    st.buddy.moving = false;
+    if (syncPlay) {
+      st.lead.x = lerp(st.lead.x, pts.lead[0], Math.min(1, dt * 10));
+      st.lead.y = lerp(st.lead.y, pts.lead[1], Math.min(1, dt * 10));
+      if (pts.leadFace != null) st.lead.face = pts.leadFace;
+    }
+    st.buddy.x = lerp(st.buddy.x, pts.buddy[0], Math.min(1, dt * 10));
+    st.buddy.y = lerp(st.buddy.y, pts.buddy[1], Math.min(1, dt * 10));
+    if (pts.buddyFace != null) st.buddy.face = pts.buddyFace;
+  }
+}
+
+export function drawHeroStage(ctx, T, st, opt) {
+  const { leadId, buddyId, scale, buddyScale, won, leadPose, buddyPose, leadBob = 0, buddyBob = 0, airWalk = false } = opt;
+  const drawOne = (h, who, sc, poseDef, extraBob, phaseOff) => {
+    if (won && !h.moving) {
+      const d = gladjedans(T + phaseOff);
+      drawHero(ctx, T, h.x, h.y, { ...d, who, scale: sc, face: h.face });
+    } else if (won && h.moving) {
+      drawHero(ctx, T, h.x, h.y, {
+        who, scale: sc, expr: 'skratt',
+        pose: airWalk ? 'jump' : 'walk',
+        phase: h.walkPhase,
+        bob: airWalk ? -Math.abs(Math.sin(h.walkPhase * Math.PI)) * 14 : 0,
+        face: h.face,
+      });
+    } else {
+      const jBob = h.jump > 0 ? -Math.sin(h.jump * Math.PI) * 26 : 0;
+      drawHero(ctx, T, h.x, h.y, {
+        who, scale: sc, expr: h.expr,
+        pose: h.jump > 0 ? 'jump' : (poseDef || 'idle'),
+        phase: h.walkPhase,
+        bob: jBob + extraBob,
+        face: h.face,
+      });
+    }
+  };
+  drawOne(st.lead, leadId, scale, leadPose, leadBob, 0);
+  drawOne(st.buddy, buddyId, buddyScale ?? scale, buddyPose || 'idle', buddyBob, 0.55);
 }
 
 export function drawPortrait(canvas, who) {
@@ -706,9 +819,11 @@ export function drawBasket(ctx, x, y, r, color, iconFn) {
   ctx.restore();
 }
 
-export function drawWateringCan(ctx, x, y, tilt = 0, pouring = false, T = 0) {
+export function drawWateringCan(ctx, x, y, tilt = 0, pouring = false, T = 0, scale = 1) {
+  if (ST) { const [sx, sy, k] = skarm(ctx, x, y + 18 * scale); ST.sprite('can', sx, sy, 66 * scale * k, 44 * scale * k); }
   ctx.save();
   ctx.translate(x, y);
+  ctx.scale(scale, scale);
   ctx.rotate(tilt);
   ctx.fillStyle = '#6fb8d6';
   ctx.strokeStyle = '#385d72';
