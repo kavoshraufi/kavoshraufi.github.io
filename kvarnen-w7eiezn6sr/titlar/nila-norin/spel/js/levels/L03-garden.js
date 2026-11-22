@@ -1,6 +1,6 @@
 import {
   TAU, clamp, lerp, dist,
-  blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
+  blit, drawHero, drawShadow, drawGlowRing, drawGuideHand, drawGuideHold,
   drawWateringCan, playSfx, playNote, bgPoint,
 } from '../core.js';
 
@@ -8,14 +8,19 @@ export const level03 = {
   id: 'garden',
   shortTitle: 'Trädgård',
   title: 'Trädgårdsmagin',
-  icon: '🌻',
+  art: 'solros',
   bg: 'tradgard',
   tint: '#d9dfb8',
   goalTotal: 4,
-  goalIcon: '🌸',
+  rounds: 3,
+  goalArt: 'blomma',
   bookDesc: 'Färgsprakande blommor som vattnats med systrarnas vattenkanna!',
 
   create(api) {
+    // 1.9: ny kärnverb — HÅLL KVAR. Tryck på en bädd så sår systrarna (välj gärna färg på en fröpåse först),
+    // och HÅLL sedan fingret på bädden: kannan häller och blomman växer så länge du håller.
+    const R = api.round || 1;
+    const RATE = 0.92 / (R === 1 ? 1.1 : R === 2 ? 1.4 : 1.7); // vatten/s medan man håller
     const KINDS = [
       { id: 'yellow', color: '#ffd24c', center: '#a85d1a', name: 'Solros' },
       { id: 'pink', color: '#ff78a8', center: '#ffe88a', name: 'Tulpan' },
@@ -29,7 +34,10 @@ export const level03 = {
       heroExprT: 0,
       heroJump: 0,
       buddyJump: 0,
-      dragKind: null, // { type:'seed', kind } | { type:'can' }
+      dragKind: null,
+      valdPacket: null,
+      holdBed: null,
+      canTilt: 0,
       canX: 0,
       canY: 0,
       canHomeX: 0,
@@ -55,7 +63,7 @@ export const level03 = {
         const bedPts = [[360, 336], [460, 318], [560, 318], [650, 336]];
         s.beds.forEach((b, i) => {
           const p = bgPoint(W, H, 'tradgard', bedPts[i][0], bedPts[i][1]);
-          b.x = p.x; b.y = p.y;
+          b.x = p.x; b.y = Math.min(p.y, pr.y + pr.h - 24);
         });
         const pktXs = [360, 430, 500, 570];
         s.packets.forEach((p, i) => {
@@ -74,8 +82,8 @@ export const level03 = {
         }
         const hp = bgPoint(W, H, 'tradgard', 90, 368);
         const bp = bgPoint(W, H, 'tradgard', 690, 368);
-        s.heroPos = [hp.x, hp.y];
-        s.buddyPos = [bp.x, bp.y];
+        s.heroPos = [hp.x, Math.min(hp.y, pr.y + pr.h)];
+        s.buddyPos = [bp.x, Math.min(bp.y, pr.y + pr.h)];
       } else {
         const bedXs = [0.24, 0.76, 0.24, 0.76];
         const bedYs = [0.42, 0.42, 0.62, 0.62];
@@ -168,6 +176,23 @@ export const level03 = {
       return true;
     }
 
+    function bloomMagic(bed) {
+      const k = bed.kind.id;
+      if (k === 'yellow') {
+        playNote(4, 0.4);
+        api.particles.burst(bed.x, bed.y - 56, 18, { kind: 'star', colors: ['#ffd24c', '#fff7b0', '#ffffff'] });
+      } else if (k === 'pink') {
+        playNote(2, 0.4);
+        api.particles.burst(bed.x, bed.y - 56, 18, { kind: 'heart', colors: ['#ff78a8', '#ffc2d8', '#ffffff'] });
+      } else if (k === 'blue') {
+        playNote(5, 0.42);
+        api.particles.burst(bed.x, bed.y - 56, 18, { kind: 'star', colors: ['#6ec4ff', '#cceeff', '#ffffff'] });
+      } else {
+        playNote(3, 0.42);
+        api.particles.burst(bed.x, bed.y - 56, 18, { kind: 'star', colors: ['#ba84ff', '#ffe885', '#ffffff'] });
+      }
+    }
+
     function waterBed(bed, amount) {
       if (bed.stage !== 1) return;
       bed.water = clamp(bed.water + amount, 0, 1);
@@ -183,8 +208,7 @@ export const level03 = {
         s.heroJump = 1;
         s.buddyJump = 0.9;
         playSfx('pling');
-        playNote(bed.i, 0.35);
-        api.particles.burst(bed.x, bed.y - 54, 18, { kind: 'star', colors: [bed.kind.color, '#ffe17a', '#ffffff'] });
+        bloomMagic(bed);
         s.butterfly.tx = bed.x;
         s.butterfly.ty = bed.y - 78;
         const done = s.beds.filter((b) => b.stage === 2).length;
@@ -204,16 +228,20 @@ export const level03 = {
         if (s.waterSfxCd > 0) s.waterSfxCd -= dt;
         for (const b of s.beds) if (b.popT > 0) b.popT = Math.max(0, b.popT - dt * 2.5);
 
-        // Vattna kontinuerligt när kannan hålls över en sådd bädd!
+        // Håll kvar på en sådd bädd → kannan svävar dit och häller så länge fingret ligger kvar
         s.pouringBed = null;
-        if (s.canHeld) {
-          for (const b of s.beds) {
-            if (b.stage === 1 && dist(s.canX - 30, s.canY + 14, b.x, b.y - 20) < 72) {
-              s.pouringBed = b;
-              waterBed(b, dt * 1.45);
-              break;
-            }
-          }
+        if (s.canTilt > 0) s.canTilt = Math.max(0, s.canTilt - dt * 1.8);
+        if (s.holdBed && s.holdBed.stage === 1) {
+          s.pouringBed = s.holdBed;
+          s.canHeld = true;
+          s.canX = lerp(s.canX, s.holdBed.x + 40, Math.min(1, dt * 14));
+          s.canY = lerp(s.canY, s.holdBed.y - 62, Math.min(1, dt * 14));
+          s.idleT = 0;
+          waterBed(s.holdBed, dt * RATE);
+          if (Math.random() < dt * 10) api.particles.burst(s.holdBed.x + (Math.random() - 0.5) * 30, s.holdBed.y - 20, 2, { colors: ['#8fd3ff', '#ffffff'], speed: 30, lift: -20, life: 0.4 });
+        } else {
+          if (s.holdBed && s.holdBed.stage !== 1) s.holdBed = null;
+          s.canHeld = false;
         }
 
         s.butterfly.x = lerp(s.butterfly.x, s.butterfly.tx, Math.min(1, dt * 3));
@@ -224,45 +252,61 @@ export const level03 = {
         layout(W, H);
         s.idleT = 0;
 
-        // 1. Vattenkanna
-        if (dist(x, y, s.canX, s.canY) < 52) {
-          s.canHeld = true;
-          s.dragKind = { type: 'can' };
-          playSfx('ok');
-          return;
-        }
-
-        // 2. Fröpåse
-        for (const p of s.packets) {
-          if (!p.used && dist(x, y, p.x, p.y) < 42) {
-            s.dragKind = { type: 'seed', packet: p };
-            playSfx('ok');
+        // 0. Sådd bädd: håll kvar för att vattna (målet går alltid före kanna/påsar)
+        for (const b of s.beds) {
+          if (b.stage === 1 && dist(x, y, b.x, b.y - 18) < 48) {
+            s.holdBed = b;
+            s.waterSfxCd = 0;
+            waterBed(b, 0.03);
+            api.particles.burst(b.x, b.y - 24, 8, { colors: ['#8fd3ff', '#ffffff'], speed: 70 });
             return;
           }
         }
 
-        // 3. Tryck direkt på tom bädd om en påse finns → snällt autoförslag / så närmaste!
+        // 1. Kannan: vickar och stänker (lek)
+        if (dist(x, y, s.canX, s.canY) < 46) {
+          s.canTilt = 1;
+          playSfx('water');
+          api.particles.burst(s.canX - 30, s.canY + 10, 10, { colors: ['#8fd3ff', '#ffffff'], speed: 90 });
+          return;
+        }
+
+        // 2. Fröpåse: välj färg till nästa sådd (frivilligt val)
+        for (const p of s.packets) {
+          if (!p.used && dist(x, y, p.x, p.y) < 34) {
+            s.valdPacket = p;
+            playSfx('ok');
+            api.particles.burst(p.x, p.y, 8, { colors: [p.color, '#ffffff'] });
+            return;
+          }
+        }
+
+        // 3. Tom bädd → så (vald påse eller nästa), blommande bädd → blomman sjunger
         for (const b of s.beds) {
           if (dist(x, y, b.x, b.y - 18) < 52) {
             if (b.stage === 0) {
-              const firstUnused = s.packets.find((p) => !p.used);
-              if (firstUnused) sowBed(b, firstUnused);
-              return;
-            }
-            if (b.stage === 1) {
-              // Snabbt tryck vattnar också direkt så små barn aldrig fastnar!
-              s.canX = b.x + 36; s.canY = b.y - 54;
-              waterBed(b, 0.52);
+              const pk = (s.valdPacket && !s.valdPacket.used) ? s.valdPacket : s.packets.find((p) => !p.used);
+              if (pk) { sowBed(b, pk); s.valdPacket = null; }
               return;
             }
             if (b.stage === 2) {
               b.popT = 1;
-              playNote(b.i, 0.35);
+              bloomMagic(b);
               s.butterfly.tx = b.x; s.butterfly.ty = b.y - 78;
-              api.particles.burst(b.x, b.y - 52, 10, { colors: [b.kind.color, '#ffe17a'] });
               return;
             }
           }
+        }
+
+        // 3b. Fjärilen dansar och kvittrar när man rör den!
+        if (dist(x, y, s.butterfly.x, s.butterfly.y) < 46) {
+          const pr = layout(W, H);
+          s.butterfly.tx = pr.x + pr.w * (0.28 + Math.random() * 0.44);
+          s.butterfly.ty = pr.y + pr.h * (0.22 + Math.random() * 0.28);
+          playSfx('pling');
+          playNote(5, 0.3);
+          api.particles.burst(s.butterfly.x, s.butterfly.y, 12, { kind: 'star', colors: ['#ffe17a', '#ff9ec4', '#ffffff'] });
+          return;
         }
 
         // 4. Systrarna
@@ -284,29 +328,14 @@ export const level03 = {
       },
 
       onMove(x, y) {
-        if (!s.dragKind) return;
-        if (s.dragKind.type === 'can') {
-          s.canX = x; s.canY = y;
-        } else if (s.dragKind.type === 'seed') {
-          s.dragKind.packet.x = x; s.dragKind.packet.y = y;
-        }
+        // Glider fingret bort från bädden slutar kannan hälla (ingen bestraffning, vattnet stannar kvar)
+        if (s.holdBed && dist(x, y, s.holdBed.x, s.holdBed.y - 18) > 80) s.holdBed = null;
       },
 
       onUp() {
-        if (s.dragKind && s.dragKind.type === 'seed') {
-          const p = s.dragKind.packet;
-          for (const b of s.beds) {
-            if (b.stage === 0 && dist(p.x, p.y, b.x, b.y - 12) < 68) {
-              sowBed(b, p);
-              break;
-            }
-          }
-          p.x = p.homeX; p.y = p.homeY;
-        }
+        s.holdBed = null;
         s.canHeld = false;
         s.pouringBed = null;
-        s.dragKind = null;
-        s.canX = s.canHomeX; s.canY = s.canHomeY;
       },
 
       draw(ctx, T, W, H) {
@@ -314,8 +343,8 @@ export const level03 = {
 
         // Mjuka odlingskrukor/bäddar (aldrig svarta fläckar!)
         for (const b of s.beds) {
-          const needSeed = s.dragKind?.type === 'seed' && b.stage === 0;
-          const needWater = (s.dragKind?.type === 'can' || b.stage === 1) && b.stage === 1;
+          const needSeed = b.stage === 0 && !s.beds.some((o) => o.stage === 1);
+          const needWater = b.stage === 1;
           if (needSeed || needWater) {
             drawGlowRing(ctx, T, b.x, b.y - 14, 38, needSeed ? 'rgba(255, 224, 110, 0.8)' : 'rgba(130, 214, 255, 0.85)');
           }
@@ -339,10 +368,8 @@ export const level03 = {
         // Fröpåsar längs ovankanten
         for (const p of s.packets) {
           if (p.used) continue;
-          const held = s.dragKind?.packet === p;
-          if (!held && s.beds.some((b) => b.stage === 0)) {
-            drawGlowRing(ctx, T, p.x, p.y, 26, 'rgba(255, 226, 120, 0.5)');
-          }
+          const held = s.valdPacket === p;
+          if (held) drawGlowRing(ctx, T, p.x, p.y, 26, 'rgba(255, 226, 120, 0.8)');
           ctx.save();
           ctx.translate(p.x, p.y + (held ? -6 : Math.sin(T * 2.5 + p.i) * 3));
           ctx.scale(held ? 1.15 : 1, held ? 1.15 : 1);
@@ -365,8 +392,8 @@ export const level03 = {
         if (api.won) {
           const d1 = api.gladjedans(T);
           const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.80, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.80, { ...d2, who: buddyId, scale: heroScale, face: -1 });
+          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
+          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
         } else {
           drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
             who: leadId, scale: heroScale, expr: s.heroExpr,
@@ -382,19 +409,15 @@ export const level03 = {
         }
 
         // Vattenkanna (lutar & häller stråle!)
-        const needAnyWater = s.beds.some((b) => b.stage === 1);
-        if (needAnyWater && !s.canHeld) {
-          drawGlowRing(ctx, T, s.canX, s.canY, 34, 'rgba(126, 212, 255, 0.75)');
-        }
-        drawWateringCan(ctx, s.canX, s.canY, s.pouringBed ? -0.45 : (s.canHeld ? -0.15 : 0), !!s.pouringBed, T);
+        if (!s.canHeld) { s.canX = lerp(s.canX, s.canHomeX, 0.2); s.canY = lerp(s.canY, s.canHomeY, 0.2); }
+        drawWateringCan(ctx, s.canX, s.canY, s.pouringBed ? -0.45 : -Math.sin(s.canTilt * Math.PI) * 0.5, !!s.pouringBed || s.canTilt > 0.3, T);
 
         // Pekhand
-        if (!api.won && (s.beds.every((b) => b.stage === 0) || s.idleT > 2.8)) {
+        if (!api.won && (s.beds.every((b) => b.stage === 0) || s.idleT > 2.0)) {
           const seeded = s.beds.find((b) => b.stage === 1);
           const empty = s.beds.find((b) => b.stage === 0);
-          const pkt = s.packets.find((p) => !p.used);
-          if (seeded) drawGuideHand(ctx, T, s.canX, s.canY, seeded.x + 24, seeded.y - 38);
-          else if (empty && pkt) drawGuideHand(ctx, T, pkt.x, pkt.y, empty.x, empty.y - 12);
+          if (seeded && !s.holdBed) drawGuideHold(ctx, T, seeded.x, seeded.y - 18, Math.ceil((1 - seeded.water) / RATE * 1000) + 300);
+          else if (empty && !seeded) drawGuideHand(ctx, T, empty.x + 6, empty.y - 12);
         }
       },
     };

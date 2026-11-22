@@ -8,12 +8,14 @@ export const level04 = {
   id: 'sort',
   shortTitle: 'Sortera',
   title: 'Sorteringsstugan',
-  icon: '🧺',
+  art: 'korg',
   bg: 'stuga',
   tint: '#d9c29c',
-  goalTotal: 9,
-  goalIcon: '🧺',
-  bookDesc: 'Välstädade skogskorgar fulla av stjärnor, bär och ekollon!',
+  goalTotal: 5,
+  rounds: 4,
+  goalFor: (r) => [6, 7, 8, 9][Math.min(3, r - 1)],
+  goalArt: 'korg',
+  bookDesc: 'Skogsvännerna knackade på och fick precis det de önskade sig!',
 
   create(api) {
     const GROUPS = [
@@ -22,59 +24,73 @@ export const level04 = {
       { id: 'brown', color: '#8f643c', label: 'Ekollon', kind: 'acorn' },
     ];
 
+    // 1.9: ny kärnverb — VÄLJ RÄTT. Skogsvänner knackar på stugans fönster och önskar sig något
+    // (visas i en pratbubbla). Barnet trycker på rätt sak på mattan; systrarna skickar iväg den i en båge.
+    const R = api.round || 1;
+    const N = [6, 7, 8, 9][Math.min(3, R - 1)];
+    const TVA = R >= 3; // från runda 3 önskar vännerna sig två olika saker
+    const VANNER = ['owl', 'hedge', 'bunny', 'fox', 'bear', 'bird', 'owl-baby'];
     const s = {
       idleT: 0,
       sorted: 0,
-      dragging: null,
-      selected: null,
-      downX: 0,
-      downY: 0,
       heroExpr: 'glad',
       heroExprT: 0,
       heroJump: 0,
       buddyJump: 0,
-      winBirdT: 0,
       inited: false,
       baskets: GROUPS.map((g, i) => ({ ...g, i, x: 0, y: 0, count: 0, bounce: 0 })),
       items: [],
+      wish: null,        // { group, friend, popT }
+      flying: null,      // { it, t, ax, ay, bx, by }
+      wiggle: null, dragging: null, downX: 0, downY: 0,
+      friendIdx: (R - 1) * 2,
+      winBirdT: 0,
     };
 
-    // 9 skatter utspridda på mattan
-    const order = ['gold', 'pink', 'brown', 'pink', 'brown', 'gold', 'brown', 'gold', 'pink'];
-    order.forEach((gid, idx) => {
+    // Mattan: alla tre sorterna blandade, ett par extra så det finns att välja på
+    const order = ['gold', 'pink', 'brown', 'pink', 'brown', 'gold', 'brown', 'gold', 'pink', 'gold', 'brown'];
+    order.slice(0, N + 2).forEach((gid, idx) => {
       const g = GROUPS.find((x) => x.id === gid);
-      s.items.push({
-        id: idx,
-        group: gid,
-        kind: g.kind,
-        color: g.color,
-        x: 0, y: 0, homeX: 0, homeY: 0,
-        done: false,
-        rx: 0, ry: 0,
-      });
+      s.items.push({ id: idx, group: gid, kind: g.kind, color: g.color, x: 0, y: 0, done: false, bob: 0 });
     });
+
+    function nyOnskan() {
+      const kvar = s.items.filter((x) => !x.done);
+      if (!kvar.length) return;
+      // Snäll variation: inte samma sort två gånger i rad om det går
+      const prev = s.wish ? s.wish.last : null;
+      const val = kvar.find((x) => x.group !== prev) || kvar[0];
+      const groups = [val.group];
+      const behov = N - s.sorted;
+      if (TVA && behov >= 2) {
+        const andra = kvar.find((x) => x.group !== val.group);
+        if (andra) groups.push(andra.group);
+      }
+      s.wish = { groups, group: groups[0], last: groups[groups.length - 1], friend: VANNER[s.friendIdx % VANNER.length], popT: 1 };
+      s.friendIdx++;
+      playSfx('pling');
+    }
+    nyOnskan();
 
     function layout(W, H) {
       const pr = api.playRect(W, H);
       const land = W >= H;
       s.baskets.forEach((b, i) => {
-        b.x = pr.x + pr.w * (land ? (0.28 + i * 0.22) : (0.22 + i * 0.28));
-        b.y = pr.y + pr.h * (land ? 0.36 : 0.34);
+        b.x = pr.x + pr.w * (land ? (0.46 + i * 0.17) : (0.42 + i * 0.2));
+        b.y = pr.y + pr.h * (land ? 0.40 : 0.36);
       });
+      const cols = Math.ceil(s.items.length / 2);
       s.items.forEach((it, idx) => {
-        const col = idx % 3;
-        const row = Math.floor(idx / 3);
-        const rx = land ? (0.29 + col * 0.20 + (row % 2) * 0.04) : (0.22 + col * 0.28);
-        const ry = land ? (0.64 + row * 0.13) : (0.54 + row * 0.12);
-        it.homeX = pr.x + pr.w * rx;
-        it.homeY = pr.y + pr.h * ry;
-        if (!s.inited || (!it.done && s.dragging !== it)) {
-          it.x = it.homeX;
-          it.y = it.homeY;
-        }
+        if (it.done || s.dragging === it) return;
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        const rx = land ? (0.24 + col * (0.52 / Math.max(1, cols - 1)) + row * 0.04) : (0.18 + col * (0.64 / Math.max(1, cols - 1)));
+        const ry = land ? (0.68 + row * 0.16) : (0.58 + row * 0.13);
+        it.x = pr.x + pr.w * rx;
+        it.y = pr.y + pr.h * ry;
       });
-      s.heroPos = [pr.x + pr.w * (land ? 0.11 : 0.18), pr.y + pr.h * (land ? 0.80 : 0.88)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.89 : 0.82), pr.y + pr.h * (land ? 0.80 : 0.88)];
+      s.heroPos = [pr.x + pr.w * (land ? 0.08 : 0.14), pr.y + pr.h * (land ? 0.84 : 0.90)];
+      s.buddyPos = [pr.x + pr.w * (land ? 0.92 : 0.86), pr.y + pr.h * (land ? 0.84 : 0.90)];
       s.winPos = [pr.x + pr.w * (land ? 0.27 : 0.28), pr.y + pr.h * (land ? 0.28 : 0.16)];
       s.inited = true;
       return pr;
@@ -110,24 +126,27 @@ export const level04 = {
       drawTreasure(ctx, { kind: g.kind }, bx, by + br * 0.14, 0.62);
     }
 
-    function placeInBasket(it, b) {
+    function skicka(it) {
+      const b = s.baskets.find((k) => k.id === it.group);
       it.done = true;
-      s.dragging = null;
-      s.selected = null;
+      s.flying = { it, t: 0, ax: it.x, ay: it.y, bx: b.x, by: b.y - 10, b };
+      s.heroJump = 0.6; s.heroExpr = 'skratt'; s.heroExprT = 0.7;
+      playSfx('whoosh');
+    }
+
+    function landat(f) {
+      const b = f.b;
       b.count++;
       b.bounce = 1;
       s.sorted++;
-      s.heroExpr = 'skratt';
-      s.heroExprT = 0.9;
-      s.heroJump = 0.7;
-      s.buddyJump = 0.6;
-      playSfx('ok');
+      s.buddyJump = 0.8;
+      playSfx('heart');
       playNote(s.sorted - 1, 0.32);
-      api.particles.burst(b.x, b.y - 12, 14, { kind: 'star', colors: [b.color, '#ffe17a', '#ffffff'] });
+      api.particles.burst(b.x, b.y - 12, 14, { kind: 'heart', colors: [b.color, '#ffe17a', '#ffffff'] });
       api.setProgress(s.sorted);
-      if (s.sorted >= s.items.length) {
-        api.win(3);
-      }
+      s.flying = null;
+      if (s.sorted >= N) api.win();
+      else if (!s.wish || !s.wish.groups.length) nyOnskan();
     }
 
     return {
@@ -139,46 +158,44 @@ export const level04 = {
         if (s.heroJump > 0) s.heroJump = Math.max(0, s.heroJump - dt * 2.4);
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.4);
         if (s.winBirdT > 0) s.winBirdT = Math.max(0, s.winBirdT - dt * 1.4);
+        if (s.wish && s.wish.popT > 0) s.wish.popT = Math.max(0, s.wish.popT - dt * 2.5);
+        if (s.wiggle) { s.wiggle.t -= dt; if (s.wiggle.t <= 0) s.wiggle = null; }
         for (const b of s.baskets) if (b.bounce > 0) b.bounce = Math.max(0, b.bounce - dt * 4);
+        if (s.flying) { s.flying.t += dt * 2.4; if (s.flying.t >= 1) landat(s.flying); }
       },
 
       onDown(x, y, W, H) {
         layout(W, H);
         s.idleT = 0;
-        s.downX = x; s.downY = y;
 
-        // 1. Ta tag i en skatt på mattan
-        for (let i = s.items.length - 1; i >= 0; i--) {
-          const it = s.items[i];
-          if (!it.done && dist(x, y, it.x, it.y) < 34) {
-            s.dragging = it;
-            s.selected = it;
-            playSfx('tap');
-            return;
-          }
-        }
-
-        // 2. Om en skatt är vald med dutt → tryck på korg!
-        if (s.selected && !s.selected.done) {
-          for (const b of s.baskets) {
-            if (dist(x, y, b.x, b.y) < 56) {
-              if (b.id === s.selected.group) {
-                placeInBasket(s.selected, b);
-              } else {
-                playSfx('softno');
-                const right = s.baskets.find((k) => k.id === s.selected.group);
-                if (right) api.particles.burst(right.x, right.y - 16, 8, { kind: 'star' });
-              }
+        // 1. Tryck eller dra en sak på mattan
+        if (!s.flying && s.wish) {
+          for (const it of s.items) {
+            if (!it.done && dist(x, y, it.x, it.y) < 36) {
+              s.dragging = it;
+              s.downX = x; s.downY = y;
+              playSfx('ok');
               return;
             }
           }
         }
 
-        // 3. Fönsterfågel
-        if (s.winPos && dist(x, y, s.winPos[0], s.winPos[1]) < 60) {
+        // 2. Korgarna studsar och spelar sin ton
+        for (const b of s.baskets) {
+          if (dist(x, y, b.x, b.y) < 46) {
+            b.bounce = 1;
+            playNote(b.i * 2, 0.3);
+            api.particles.burst(b.x, b.y - 20, 8, { kind: 'star', colors: [b.color, '#ffffff'] });
+            return;
+          }
+        }
+
+        // 3. Vännen i fönstret vinkar
+        if (s.winPos && dist(x, y, s.winPos[0], s.winPos[1]) < 56) {
           s.winBirdT = 1;
-          playSfx('pling');
-          api.particles.burst(s.winPos[0], s.winPos[1], 12, { kind: 'star' });
+          if (s.wish) s.wish.popT = 1;
+          playSfx('pling'); playNote(s.friendIdx % 6, 0.32);
+          api.particles.burst(s.winPos[0], s.winPos[1], 12, { kind: 'heart' });
           return;
         }
 
@@ -201,49 +218,58 @@ export const level04 = {
         s.dragging.x = x;
         s.dragging.y = y;
       },
-
       onUp(x, y) {
         if (!s.dragging) return;
         const it = s.dragging;
         s.dragging = null;
-        for (const b of s.baskets) {
-          if (dist(it.x, it.y, b.x, b.y) < 68) {
-            if (b.id === it.group) {
-              placeInBasket(it, b);
-              return;
-            }
-            playSfx('softno');
-            it.x = it.homeX; it.y = it.homeY;
-            return;
-          }
-        }
-        if (dist(x, y, s.downX, s.downY) >= 18) {
-          it.x = it.homeX; it.y = it.homeY;
-        } else {
-          // Dutt → stanna vald för enkel 2-tryckssortering!
-          it.x = it.homeX; it.y = it.homeY;
+        const quickTap = dist(x, y, s.downX, s.downY) < 22;
+        const nearTarget = s.baskets.some((b) => dist(x, y, b.x, b.y) < 62) || (s.winPos && dist(x, y, s.winPos[0], s.winPos[1]) < 80);
+        const gi = s.wish ? s.wish.groups.indexOf(it.group) : -1;
+        if (gi >= 0 && (quickTap || nearTarget)) {
+          s.wish.groups.splice(gi, 1);
+          s.wish.group = s.wish.groups[0] || null;
+          skicka(it);
+        } else if (gi < 0 && (quickTap || nearTarget)) {
+          s.wiggle = { it, t: 0.45 };
+          if (s.wish) s.wish.popT = 1;
+          playSfx('softno');
         }
       },
 
       draw(ctx, T, W, H) {
         const pr = layout(W, H);
-        const active = s.dragging || s.selected;
 
-        // Korgar med färg & tydlig bildikon
+        // Korgar
         for (const b of s.baskets) {
-          const match = active && active.group === b.id;
-          if (match) drawGlowRing(ctx, T, b.x, b.y, 44, b.color);
           const sc = 1 + Math.sin(b.bounce * Math.PI) * 0.2;
           ctx.save();
           ctx.translate(b.x, b.y);
           ctx.scale(sc, 2 - sc);
-          drawBasket(ctx, 0, 0, 34, b.color, (c) => drawBasketBadge(c, b, 0, 0, 34));
+          drawBasket(ctx, 0, 0, 32, b.color, (c) => drawBasketBadge(c, b, 0, 0, 32));
           ctx.restore();
         }
 
-        // Fönsterfågel vid tryck på fönstret
-        if (s.winBirdT > 0 && s.winPos) {
-          blit(ctx, 'bird', s.winPos[0], s.winPos[1] + 20 - Math.sin(s.winBirdT * Math.PI) * 18, { h: 48 });
+        // Vännen i fönstret med sin önskebubbla
+        if (s.wish && s.winPos) {
+          const [wx, wy] = s.winPos;
+          const pop = 1 + Math.sin(s.wish.popT * Math.PI) * 0.18;
+          blit(ctx, s.wish.friend, wx, wy + 30 - Math.sin(T * 2.2) * 3 - s.winBirdT * 8, { h: 60 });
+          const bx = wx + 66, by = wy - 22;
+          ctx.save();
+          ctx.translate(bx, by);
+          ctx.scale(pop, pop);
+          ctx.fillStyle = 'rgba(255, 252, 240, 0.96)';
+          ctx.strokeStyle = 'rgba(122, 86, 40, 0.55)';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.ellipse(0, 0, 32, 27, 0, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.arc(-30, 20, 6, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.arc(-40, 30, 3.5, 0, TAU); ctx.fill(); ctx.stroke();
+          const gs = s.wish.groups;
+          gs.forEach((gid, k) => {
+            const g = GROUPS.find((x) => x.id === gid);
+            drawTreasure(ctx, { kind: g.kind }, gs.length > 1 ? (k ? 13 : -13) : 0, -2, gs.length > 1 ? 0.72 : 0.95);
+          });
+          ctx.restore();
         }
 
         // Båda systrarna
@@ -253,8 +279,8 @@ export const level04 = {
         if (api.won) {
           const d1 = api.gladjedans(T);
           const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.78, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.78, { ...d2, who: buddyId, scale: heroScale, face: -1 });
+          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
+          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
         } else {
           drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
             who: leadId, scale: heroScale, expr: s.heroExpr,
@@ -269,21 +295,24 @@ export const level04 = {
           });
         }
 
-        // Skatter på mattan
+        // Saker på mattan
         for (const it of s.items) {
           if (it.done) continue;
-          const isHeld = s.dragging === it || s.selected === it;
-          if (isHeld) drawGlowRing(ctx, T, it.x, it.y, 26, it.color);
-          drawTreasure(ctx, it, it.x, it.y + (isHeld ? -6 : 0), isHeld ? 1.18 : 1);
+          const w = s.wiggle && s.wiggle.it === it ? Math.sin(s.wiggle.t * 40) * 6 : 0;
+          drawTreasure(ctx, it, it.x + w, it.y, s.dragging === it ? 1.18 : 1);
+        }
+        // Saken i luften
+        if (s.flying) {
+          const f = s.flying, k = Math.min(1, f.t);
+          const fx = f.ax + (f.bx - f.ax) * k;
+          const fy = f.ay + (f.by - f.ay) * k - Math.sin(k * Math.PI) * 70;
+          drawTreasure(ctx, f.it, fx, fy, 1.1 - k * 0.3);
         }
 
-        // Pekhand
-        if (!api.won && (s.sorted === 0 || s.idleT > 2.8)) {
-          const nextIt = active || s.items.find((x) => !x.done);
-          if (nextIt) {
-            const b = s.baskets.find((k) => k.id === nextIt.group);
-            if (b) drawGuideHand(ctx, T, nextIt.x, nextIt.y, b.x, b.y);
-          }
+        // Pekhand: en sak som vännen önskar sig
+        if (!api.won && !s.flying && s.wish && s.wish.group && (s.sorted === 0 || s.idleT > 2.2)) {
+          const it = s.items.find((x) => !x.done && x.group === s.wish.group);
+          if (it) drawGuideHand(ctx, T, it.x + 6, it.y + 6);
         }
       },
     };

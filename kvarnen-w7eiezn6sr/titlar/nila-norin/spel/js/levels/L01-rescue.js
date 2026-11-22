@@ -8,11 +8,12 @@ export const level01 = {
   id: 'rescue',
   shortTitle: 'Djur',
   title: 'Djurräddningen',
-  icon: '🦉',
+  art: 'uggla',
   bg: 'skog',
   tint: '#c9d7b8',
   goalTotal: 4,
-  goalIcon: '🐾',
+  rounds: 4,
+  goalArt: 'tass',
   bookDesc: 'Skogens fyra djurfamiljer myser tillsammans!',
 
   create(api) {
@@ -35,13 +36,13 @@ export const level01 = {
       buddyExpr: 'glad',
       buddyExprT: 0,
       fishPop: 0,
-      butterPop: 0,
+      butterPop: 0, trail: [],
       inited: false,
       animals: [
-        { id: 'owl', hid: false, hideKind: 'open', reunited: false, popT: 1, hugT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
-        { id: 'bunny', hid: true, hideKind: 'bush', reunited: false, popT: 0, hugT: 0, shakeT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
-        { id: 'fox', hid: true, hideKind: 'flower', reunited: false, popT: 0, hugT: 0, shakeT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
-        { id: 'hedge', hid: true, hideKind: 'log', reunited: false, popT: 0, hugT: 0, shakeT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
+        { id: 'owl', hid: (api.round || 1) > 1, hideKind: (api.round || 1) > 1 ? 'bush' : 'open', reunited: false, popT: 1, hugT: 0, callT: 0, peekT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
+        { id: 'bunny', hid: true, peekT: 0, hideKind: 'bush', reunited: false, popT: 0, hugT: 0, shakeT: 0, callT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
+        { id: 'fox', hid: true, peekT: 0, hideKind: 'flower', reunited: false, popT: 0, hugT: 0, shakeT: 0, callT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
+        { id: 'hedge', hid: true, peekT: 0, hideKind: 'log', reunited: false, popT: 0, hugT: 0, shakeT: 0, callT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
       ],
       shrooms: [
         { rx: 0.16, ry: 0.85, color: '#e66c5a', squash: 0, note: 0 },
@@ -69,7 +70,7 @@ export const level01 = {
         creek: P(0.10, 0.78), flowers: P(0.72, 0.86),
         buddy: P(0.92, 0.50), hero0: P(0.54, 0.76),
       } : {
-        owlM: P(0.25, 0.14), owlH: P(0.50, 0.46),
+        owlM: P(0.22, 0.22), owlH: P(0.50, 0.48),
         bunnyM: P(0.78, 0.20), bunnyH: P(0.78, 0.54),
         foxM: P(0.18, 0.44), foxH: P(0.50, 0.27),
         hedgeM: P(0.79, 0.82), hedgeH: P(0.27, 0.78),
@@ -77,11 +78,14 @@ export const level01 = {
         buddy: P(0.85, 0.44), hero0: P(0.52, 0.88),
       };
 
+      // Rundor: ungarna gömmer sig på nya ställen varje runda (gömställena roterar).
+      const hs = [coords.owlH, coords.bunnyH, coords.foxH, coords.hedgeH];
+      const sh = ((api.round || 1) - 1) % 4;
       const map = {
-        owl: [coords.owlM, coords.owlH],
-        bunny: [coords.bunnyM, coords.bunnyH],
-        fox: [coords.foxM, coords.foxH],
-        hedge: [coords.hedgeM, coords.hedgeH],
+        owl: [coords.owlM, hs[(0 + sh) % 4]],
+        bunny: [coords.bunnyM, hs[(1 + sh) % 4]],
+        fox: [coords.foxM, hs[(2 + sh) % 4]],
+        hedge: [coords.hedgeM, hs[(3 + sh) % 4]],
       };
 
       for (const a of s.animals) {
@@ -100,11 +104,12 @@ export const level01 = {
       s.creek.x = coords.creek[0]; s.creek.y = coords.creek[1];
       s.flowers.x = coords.flowers[0]; s.flowers.y = coords.flowers[1];
       s.buddyPos = coords.buddy;
-      if (!s.inited) {
+      if (!s.inited || (s.lastW && (s.lastW !== W || s.lastH !== H))) {
         s.heroX = coords.hero0[0];
         s.heroY = coords.hero0[1];
         s.inited = true;
       }
+      s.lastW = W; s.lastH = H;
       for (const m of s.shrooms) {
         const [mx, my] = P(m.rx, m.ry);
         m.x = mx; m.y = my;
@@ -161,6 +166,16 @@ export const level01 = {
           if (a.popT < 1 && !a.hid) a.popT = Math.min(1, a.popT + dt * 3.4);
           if (a.shakeT > 0) a.shakeT = Math.max(0, a.shakeT - dt * 3);
           if (a.hugT > 0) a.hugT = Math.max(0, a.hugT - dt * 1.2);
+          if (a.callT > 0) a.callT = Math.max(0, a.callT - dt * 1.2);
+          if (a.peekT > 0) a.peekT = Math.max(0, a.peekT - dt * 1.1);
+        }
+        const activeBaby = s.dragging || s.carried;
+        if (activeBaby && s.trail.length < 24 && Math.random() < 0.35) {
+          s.trail.push({ x: activeBaby.x + (Math.random() - 0.5) * 14, y: activeBaby.y - 18, t: 1 });
+        }
+        for (let i = s.trail.length - 1; i >= 0; i--) {
+          s.trail[i].t -= dt * 1.6;
+          if (s.trail[i].t <= 0) s.trail.splice(i, 1);
         }
 
         // Hjälte följer med buren/dragen unge eller mål
@@ -241,8 +256,28 @@ export const level01 = {
           if (a.reunited && (dist(x, y, a.mx, a.my - 26) < 64 || dist(x, y, a.x, a.y - 20) < 48)) {
             a.hugT = 1;
             playSfx('heart');
+            playNote(s.animals.indexOf(a), 0.28);
             reactHero('skratt', 0.4);
             api.particles.burst(a.mx, a.my - 32, 10, { kind: 'heart', colors: ['#ff93b0', '#ffe17a'] });
+            return;
+          }
+        }
+
+        // 4b. Väntande mamma → ropar med musikalisk våg & visar vägen (eller lockar hem avslöjad unge!)
+        for (let i = 0; i < s.animals.length; i++) {
+          const a = s.animals[i];
+          if (!a.reunited && dist(x, y, a.mx, a.my - 26) < 64) {
+            a.callT = 1;
+            a.hugT = 0.6;
+            if (a.hid) { a.shakeT = 1; a.peekT = 1; }
+            playNote(i + 1, 0.34);
+            reactHero('glad', 0.35);
+            api.particles.burst(a.mx, a.my - 32, 10, { kind: 'heart', colors: ['#ffe17a', '#ff9ec4'] });
+            if (!a.hid) {
+              a.x = lerp(a.x, a.mx, 0.55);
+              a.y = lerp(a.y, a.my, 0.55);
+              if (dist(a.x, a.y, a.mx, a.my) < 88) reunite(a);
+            }
             return;
           }
         }
@@ -401,6 +436,14 @@ export const level01 = {
           drawMushroom(ctx, sh.x, sh.y, 17, sh.color, sh.squash);
         }
 
+        // Eldfluge-spår när en unge guidas hem
+        for (const tr of s.trail) {
+          ctx.save();
+          ctx.globalAlpha = tr.t * 0.85;
+          ctx.fillStyle = '#fff3a1';
+          ctx.beginPath(); ctx.arc(tr.x, tr.y, 4 + tr.t * 4, 0, TAU); ctx.fill();
+          ctx.restore();
+        }
         // Eldflugor
         for (const mt of s.motes) {
           if (mt.cd > 0) continue;
@@ -430,6 +473,17 @@ export const level01 = {
           drawShadow(ctx, a.mx, a.my + 2, 24, 7);
           blit(ctx, a.id, a.mx, a.my + bob, { h: 78, face: a.mx > W * 0.5 ? -1 : 1 });
 
+          if (a.callT > 0) {
+            ctx.save();
+            ctx.strokeStyle = `rgba(255, 220, 110, ${a.callT * 0.85})`;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([7, 7]);
+            ctx.beginPath();
+            ctx.moveTo(a.mx, a.my - 24);
+            ctx.lineTo(a.hid ? a.hx : a.x, (a.hid ? a.hy : a.y) - 18);
+            ctx.stroke();
+            ctx.restore();
+          }
           if (a.reunited) {
             // Litet svävande hjärta över återförenad familj
             const hb = Math.sin(T * 3 + a.mx) * 4;
@@ -522,8 +576,8 @@ export const level01 = {
         if (api.won) {
           const d1 = api.gladjedans(T);
           const d2 = api.gladjedans(T + 0.55);
-          drawHero(ctx, T, W * 0.43, api.playRect(W, H).y + api.playRect(W, H).h * 0.68, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, api.playRect(W, H).y + api.playRect(W, H).h * 0.68, { ...d2, who: buddyId, scale: heroScale, face: -1 });
+          drawHero(ctx, T, W * 0.43, api.playRect(W, H).y + api.playRect(W, H).h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
+          drawHero(ctx, T, W * 0.57, api.playRect(W, H).y + api.playRect(W, H).h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
         } else {
           if (s.buddyPos) {
             const bBob = s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 26 : 0;

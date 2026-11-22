@@ -8,14 +8,18 @@ export const level02 = {
   id: 'brook',
   shortTitle: 'Bäck',
   title: 'Bäckplask',
-  icon: '🫧',
+  art: 'bubbla',
   bg: 'back',
   tint: '#b8d7cd',
-  goalTotal: 8,
-  goalIcon: '🫧',
+  goalTotal: 6,
+  rounds: 4,
+  goalFor: (r) => 4 + r, // 5, 6, 7, 8 godisbubblor
+  goalArt: 'bubbla',
   bookDesc: 'Regnbågsbubblor och lövbåtar vid den klara skogsbäcken!',
 
   create(api) {
+    const G = 4 + (api.round || 1);
+    const FART = 1 + ((api.round || 1) - 1) * 0.12;
     const TREATS = ['berry', 'star', 'sunflower', 'berry', 'star', 'berry', 'sunflower', 'star'];
     const HUES = ['#88dbff', '#ffb8d9', '#ffe184', '#a4ecc4'];
     const s = {
@@ -26,7 +30,7 @@ export const level02 = {
       heroExprT: 0,
       heroJump: 0,
       buddyJump: 0,
-      boatProg: 0,
+      boatProg: 0, boatWaveT: 0, ambT: 0, cargo: null, stones: [{ rx: 0.34, ry: 0.85, note: 0, pop: 0 }, { rx: 0.50, ry: 0.87, note: 2, pop: 0 }, { rx: 0.66, ry: 0.85, note: 4, pop: 0 }],
       ripples: [],
       bubbles: [],
       flyers: [],
@@ -36,16 +40,16 @@ export const level02 = {
 
     function spawnBubble(W, H, initial = false) {
       const pr = api.playRect(W, H);
-      const isTreat = s.bubbles.filter((b) => b.treat).length < 4 && (s.popped + s.bubbles.filter((b) => b.treat).length < 10);
+      const isTreat = s.bubbles.filter((b) => b.treat).length < 4 && (s.popped + s.bubbles.filter((b) => b.treat).length < G + 2);
       const treat = isTreat ? TREATS[(s.nextTreatIdx++) % TREATS.length] : null;
       const r = treat ? 30 : 23;
       const x = pr.x + pr.w * (0.28 + Math.random() * 0.44);
-      const y = initial ? (pr.y + pr.h * (0.35 + Math.random() * 0.45)) : (pr.y + pr.h * 0.88);
+      const y = initial ? (pr.y + pr.h * (0.30 + Math.random() * 0.42)) : (pr.y + pr.h * 0.82);
       s.bubbles.push({
         x, y,
         baseX: x,
         r,
-        vy: treat ? (36 + Math.random() * 18) : (48 + Math.random() * 24),
+        vy: (treat ? (36 + Math.random() * 18) : (48 + Math.random() * 24)) * FART,
         wobPhase: Math.random() * TAU,
         hue: HUES[Math.floor(Math.random() * HUES.length)],
         treat,
@@ -64,7 +68,7 @@ export const level02 = {
         buddyY: pr.y + pr.h * (land ? 0.74 : 0.80),
         basketX: pr.x + pr.w * (land ? 0.26 : 0.28),
         basketY: pr.y + pr.h * (land ? 0.80 : 0.86),
-        boatX: pr.x + pr.w * 0.50 + Math.sin(s.boatProg * 2) * 14,
+        boatX: pr.x + pr.w * (0.30 + 0.44 * clamp(s.popped / G, 0, 1)) + Math.sin(s.boatProg * 2) * 10,
         boatY: pr.y + pr.h * (0.72 + Math.sin(s.boatProg) * 0.06),
       };
     }
@@ -79,6 +83,9 @@ export const level02 = {
       s.heroExprT = 0.8;
       s.heroJump = 0.65;
       if (b.treat && !api.won) {
+        s.boatProg += 0.45;
+        s.boatWaveT = 0.7;
+        s.cargo = b.treat;
         const pts = layoutPts(W, H);
         s.flyers.push({
           treat: b.treat,
@@ -96,10 +103,19 @@ export const level02 = {
           for (let i = 0; i < 5; i++) spawnBubble(W, H, true);
         }
         s.idleT += dt;
+        s.ambT += dt;
+        if (!api.won && s.ambT > 2.3) {
+          s.ambT = 0;
+          const pts = layoutPts(W, H);
+          s.ripples.push({ x: pts.boatX, y: pts.boatY, t: 0 });
+          api.particles.burst(pts.boatX + (Math.random() - 0.5) * 50, pts.boatY, 5, { colors: ['#9be5ff', '#ffffff', '#ffe89c'], speed: 45, lift: 55 });
+        }
         if (s.heroExprT > 0) { s.heroExprT -= dt; if (s.heroExprT <= 0) s.heroExpr = 'glad'; }
         if (s.heroJump > 0) s.heroJump = Math.max(0, s.heroJump - dt * 2.4);
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.4);
         if (s.basketBounce > 0) s.basketBounce = Math.max(0, s.basketBounce - dt * 4);
+        if (s.boatWaveT > 0) s.boatWaveT = Math.max(0, s.boatWaveT - dt * 1.6);
+        for (const st of s.stones) if (st.pop > 0) st.pop = Math.max(0, st.pop - dt * 3.5);
 
         s.spawnT -= dt;
         if (s.spawnT <= 0 && s.bubbles.length < 7) {
@@ -108,14 +124,27 @@ export const level02 = {
         }
 
         const pr = api.playRect(W, H);
+        if (s.lastW && (s.lastW !== W || s.lastH !== H)) {
+          const oldPr = api.playRect(s.lastW, s.lastH);
+          for (const b of s.bubbles) {
+            const rx = clamp((b.baseX - oldPr.x) / Math.max(1, oldPr.w), 0.18, 0.82);
+            const ry = clamp((b.y - oldPr.y) / Math.max(1, oldPr.h), 0.15, 0.82);
+            b.baseX = pr.x + pr.w * rx;
+            b.y = pr.y + pr.h * ry;
+            b.x = b.baseX + Math.sin(b.y * 0.03 + b.wobPhase) * 16;
+          }
+          const pts = layoutPts(W, H);
+          for (const f of s.flyers) { f.bx = pts.basketX; f.by = pts.basketY - 10; }
+        }
+        s.lastW = W; s.lastH = H;
         for (let i = s.bubbles.length - 1; i >= 0; i--) {
           const b = s.bubbles[i];
           b.y -= b.vy * dt;
           b.x = b.baseX + Math.sin(b.y * 0.03 + b.wobPhase) * 16;
-          if (b.y < pr.y + 18) {
+          if (b.y < pr.y + 40) {
             if (b.treat) {
               // Återföds snällt längre ned så inga mål går förlorade
-              b.y = pr.y + pr.h * 0.88;
+              b.y = pr.y + pr.h * 0.82;
             } else {
               s.bubbles.splice(i, 1);
             }
@@ -131,9 +160,9 @@ export const level02 = {
             playSfx('pling');
             api.particles.burst(f.bx, f.by, 10, { kind: 'star' });
             if (!api.won) {
-              s.popped = Math.min(8, s.popped + 1);
+              s.popped = Math.min(G, s.popped + 1);
               api.setProgress(s.popped);
-              if (s.popped >= 8) {
+              if (s.popped >= G) {
                 s.buddyJump = 1;
                 api.win(3);
               }
@@ -160,13 +189,30 @@ export const level02 = {
           }
         }
 
-        // 2. Lövbåt → gungar & plaskar
-        if (dist(x, y, pts.boatX, pts.boatY) < 46) {
+        // 2. Lövbåt → seglar med vindvåg, sjunger & poppar en bubbla i närheten!
+        if (dist(x, y, pts.boatX, pts.boatY) < 50) {
           s.boatProg += 0.9;
+          s.boatWaveT = 1;
           playSfx('water');
+          playNote(3, 0.28);
           s.ripples.push({ x: pts.boatX, y: pts.boatY, t: 0 });
-          api.particles.burst(pts.boatX, pts.boatY, 10, { colors: ['#92e3ff', '#ffffff', '#9be296'] });
+          api.particles.burst(pts.boatX, pts.boatY - 8, 12, { colors: ['#92e3ff', '#ffffff', '#9be296'] });
+          const near = s.bubbles.find((b) => dist(b.x, b.y, pts.boatX, pts.boatY) < 120);
+          if (near) popBubble(near, W, H);
           return;
+        }
+
+        // 2b. Hoppstenar i bäcken → plask & xylofontoner!
+        for (const st of s.stones) {
+          const sx = pts.pr.x + pts.pr.w * st.rx;
+          const sy = pts.pr.y + pts.pr.h * st.ry;
+          if (dist(x, y, sx, sy) < 34) {
+            st.pop = 1;
+            playNote(st.note, 0.34);
+            s.ripples.push({ x: sx, y: sy, t: 0 });
+            api.particles.burst(sx, sy - 8, 10, { colors: ['#9be5ff', '#ffffff', '#ffe17a'] });
+            return;
+          }
         }
 
         // 3. Systrarna → glädjehopp
@@ -191,13 +237,16 @@ export const level02 = {
       },
 
       onMove(x, y, W, H) {
-        // Svep genom bubblor poppar också direkt!
+        // Svep i bäcken skapar strömvirvlar som styr bubblor & poppar!
+        if (Math.random() < 0.25) s.ripples.push({ x, y, t: 0.25 });
         for (let i = s.bubbles.length - 1; i >= 0; i--) {
           const b = s.bubbles[i];
-          if (dist(x, y, b.x, b.y) <= b.r + 14) {
+          const dd = dist(x, y, b.x, b.y);
+          if (dd <= b.r + 16) {
             popBubble(b, W, H);
             return;
           }
+          if (dd < 110) b.baseX = lerp(b.baseX, x, 0.08);
         }
       },
 
@@ -218,6 +267,18 @@ export const level02 = {
         }
         ctx.restore();
 
+        // Sjungande trampstenar i bäcken
+        for (const st of s.stones) {
+          const sx = pts.pr.x + pts.pr.w * st.rx;
+          const sy = pts.pr.y + pts.pr.h * st.ry - Math.sin(st.pop * Math.PI) * 8;
+          ctx.save();
+          ctx.fillStyle = '#b6c3bc';
+          ctx.strokeStyle = '#5a6c64';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.ellipse(sx, sy, 20, 11, 0, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.restore();
+        }
+
         // Liten lövbåt som guppar i bäcken
         ctx.save();
         ctx.translate(pts.boatX, pts.boatY + Math.sin(T * 3) * 3);
@@ -233,6 +294,9 @@ export const level02 = {
         ctx.moveTo(0, -3); ctx.lineTo(0, -24); ctx.lineTo(14, -12); ctx.closePath();
         ctx.fill(); ctx.stroke();
         ctx.restore();
+        if (s.cargo) {
+          blit(ctx, s.cargo, pts.boatX - 10, pts.boatY + 6 + Math.sin(T * 3) * 3, { h: 24 });
+        }
 
         // Picknickkorg
         const bSc = 1 + Math.sin(s.basketBounce * Math.PI) * 0.18;
@@ -274,7 +338,7 @@ export const level02 = {
         // Bubblor med skatter inuti
         for (const b of s.bubbles) {
           if (b.treat) {
-            drawGlowRing(ctx, T, b.x, b.y, b.r + 4, 'rgba(255, 224, 120, 0.55)');
+            if (!api.won) drawGlowRing(ctx, T, b.x, b.y, b.r + 4, 'rgba(255, 224, 120, 0.55)');
             blit(ctx, b.treat, b.x, b.y + 18, { h: 34 });
           }
           drawWatercolorBubble(ctx, T, b.x, b.y, b.r, b.hue);
