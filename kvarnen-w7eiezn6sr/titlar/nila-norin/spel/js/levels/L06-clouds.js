@@ -1,7 +1,8 @@
 import {
   TAU, clamp, lerp, dist,
-  blit, drawHero, drawGlowRing, drawGuideHand,
+  blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawStarPath, playSfx, playNote,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level06 = {
@@ -33,6 +34,10 @@ export const level06 = {
       targetX: null,
       targetY: null,
       inited: false,
+      dragHintT: 0,
+      dragged: false,
+      downPos: null,
+      stage: createHeroStage(),
       clouds: [
         { rx: 0.22, ry: 0.72, w: 96, sq: 0, rainbow: 0, lift: 0 },
         { rx: 0.52, ry: 0.58, w: 106, sq: 0, rainbow: 0, lift: 0 },
@@ -63,18 +68,39 @@ export const level06 = {
       ctx.translate(x, y);
       const sy = 1 - sq * 0.26, sx = 1 + sq * 0.2;
       ctx.scale(sx, sy);
-      const puffs = [[-w * 0.25, 2, w * 0.22], [0, -8, w * 0.28], [w * 0.25, 2, w * 0.22]];
-      ctx.fillStyle = 'rgba(148, 188, 222, 0.72)';
-      for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px, py, pr + 2.5, 0, TAU); ctx.fill(); }
-      ctx.beginPath(); ctx.roundRect(-w * 0.44, -6, w * 0.88, 27, 13); ctx.fill();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.97)';
+      const puffs = [[-w * 0.26, 2, w * 0.23], [0, -9, w * 0.29], [w * 0.26, 2, w * 0.23]];
+      ctx.fillStyle = 'rgba(182, 206, 232, 0.36)';
+      for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px, py + 4, pr + 2, 0, TAU); ctx.fill(); }
+      ctx.beginPath(); ctx.roundRect(-w * 0.45, -4, w * 0.90, 27, 14); ctx.fill();
+      const cg = ctx.createLinearGradient(0, -w * 0.32, 0, 20);
+      cg.addColorStop(0, 'rgba(255, 253, 246, 0.96)');
+      cg.addColorStop(1, 'rgba(234, 242, 252, 0.90)');
+      ctx.fillStyle = cg;
       for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px, py, pr, 0, TAU); ctx.fill(); }
-      ctx.beginPath(); ctx.roundRect(-w * 0.42, -4, w * 0.84, 23, 11); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(-w * 0.42, -4, w * 0.84, 23, 12); ctx.fill();
       ctx.restore();
+    }
+
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * 0.72;
+    }
+    function standPoints(W, H) {
+      const pr = api.playRect(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroX || pr.x + pr.w * 0.35, s.heroY || pr.y + pr.h * 0.62],
+        buddy: [pr.x + pr.w * 0.88, pr.y + pr.h * 0.44],
+        winLead: [W * 0.42, gy],
+        winBuddy: [W * 0.58, gy],
+        leadFace: s.face, buddyFace: -1,
+      };
     }
 
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         const pr = api.playRect(W, H);
         if (!s.inited) {
@@ -99,6 +125,7 @@ export const level06 = {
         }
         s.lastW = W; s.lastH = H;
         s.idleT += dt;
+        if (s.dragHintT > 0) s.dragHintT = Math.max(0, s.dragHintT - dt);
         if (s.heroExprT > 0) { s.heroExprT -= dt; if (s.heroExprT <= 0) s.heroExpr = 'glad'; }
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.4);
         for (const c of s.clouds) {
@@ -110,10 +137,21 @@ export const level06 = {
         }
 
         // Fysik för mjuk fjädrande flygning
+        if (!s.down && s.glideT > 0) {
+          s.glideT -= dt;
+          if (s.glideT <= 0) { s.targetX = null; s.targetY = null; }
+        }
         if (s.targetX !== null) {
           const dx = s.targetX - s.heroX;
-          s.vx = clamp(dx * 5.2, -320, 320);
+          s.vx = clamp(dx * 6.8, -420, 420);
           if (Math.abs(dx) > 6) s.face = dx >= 0 ? 1 : -1;
+          if (s.targetY !== null) {
+            const dy = (s.targetY + 26) - s.heroY;
+            if (dy < -18) s.vy = lerp(s.vy, clamp(dy * 5.5, -360, -140), Math.min(1, dt * 10));
+          }
+          if (!s.down && Math.abs(dx) < 18 && (s.targetY === null || Math.abs((s.targetY + 26) - s.heroY) < 28)) {
+            s.targetX = null; s.targetY = null; s.glideT = 0;
+          }
         } else {
           s.vx *= Math.pow(0.08, dt);
         }
@@ -159,7 +197,7 @@ export const level06 = {
           st.y = st.baseY + Math.sin(st.phase) * 16;
 
           // Fånga med systern
-          if (dist(s.heroX, s.heroY - 38, st.x, st.y) < 58) {
+          if (dist(s.heroX, s.heroY - 46, st.x, st.y) < 66) {
             s.stars.splice(i, 1);
             playSfx('star');
             playNote(s.caught % 6, 0.3);
@@ -169,7 +207,7 @@ export const level06 = {
             if (!api.won) {
               s.caught = Math.min(G, s.caught + 1);
               api.setProgress(s.caught);
-              if (s.caught >= G) api.win(3);
+              if (s.caught >= G) { reactHeroStage(s.stage, 'both', 'skratt', 0.9); api.win(3); }
             }
             continue;
           }
@@ -178,59 +216,80 @@ export const level06 = {
             st.x = clamp(st.x, pr.x + 10, pr.x + pr.w - 10);
           }
         }
+        const pts = standPoints(W, H);
+        if (!api.levelWon) {
+          s.stage.lead.x = s.heroX; s.stage.lead.y = s.heroY; s.stage.lead.face = s.face; s.stage.lead.init = true;
+          s.stage.buddy.x = pts.buddy[0]; s.stage.buddy.y = pts.buddy[1] - Math.sin(s.buddyJump * Math.PI) * 20; s.stage.buddy.face = -1; s.stage.buddy.init = true;
+        }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts, syncPlay: false, airWalk: true });
       },
 
       onDown(x, y, W, H) {
+        s.down = true;
+        s.dragged = false;
+        s.downPos = [x, y];
         s.idleT = 0;
         const pr = api.playRect(W, H);
         // Andra systern på sidomolnet hejar & kastar stjärnglitter
-        const bx = pr.x + pr.w * 0.88, by = pr.y + pr.h * 0.42;
+        const bx = pr.x + pr.w * 0.88, by = pr.y + pr.h * 0.44;
         if (!api.won && dist(x, y, bx, by - 36) < 48) {
           s.buddyJump = 1;
+          reactHeroStage(s.stage, 'buddy', 'skratt', 0.8);
           playSfx('cheer');
           api.particles.burst(bx, by - 46, 14, { kind: 'star', colors: ['#ffe272', '#ff9ec4', '#88dbff'] });
           return;
         }
-        // Tryck på ett studsmoln → regnbågspuff som skickar systern högt!
+        // Tryck på en stjärna utan att dra: visa dragledtråd istället för att flyga dit själv!
+        for (const st of s.stars) {
+          if (dist(x, y, st.x, st.y) < 40) {
+            s.dragHintT = 1.6;
+            playSfx('tap');
+            api.particles.burst(st.x, st.y, 7, { kind: 'star', colors: ['#ffe272', '#ffffff'], speed: 55 });
+            return;
+          }
+        }
+        // Tryck på ett studsmoln → regnbågspuff som lyfter molnet (och studsar systern om hon är nära)
         for (let ci = 0; ci < s.clouds.length; ci++) {
           const c = s.clouds[ci];
           if (Math.abs(x - c.x) < c.w * 0.5 && Math.abs(y - c.y) < 30) {
             c.sq = 1; c.rainbow = 1; c.lift = 1;
-            for (const st of s.stars) if (dist(st.x, st.y, c.x, c.y) < 180) st.baseY = lerp(st.baseY, c.y - 48, 0.3);
-            s.targetX = c.x;
-            s.vy = -360;
+            if (Math.abs(s.heroX - c.x) < c.w * 0.8) s.vy = -340;
             playSfx('whoosh');
             playNote(ci * 2, 0.3);
             api.particles.burst(c.x, c.y - 10, 14, { kind: 'star', colors: ['#ff9ec4', '#ffe272', '#88dbff', '#9be296'] });
             return;
           }
         }
-        s.targetX = x;
-        s.targetY = y;
-        // Direkt hopp mot dit man trycker (och direktfångst om man duttar på stjärnan!)
-        s.vy = y < s.heroY ? -320 : -220;
-        playSfx('jump');
-        api.particles.burst(x, y, 6, { colors: ['#ffffff', '#ffe89c'], speed: 60 });
-        for (let i = s.stars.length - 1; i >= 0; i--) {
-          const st = s.stars[i];
-          if (dist(x, y, st.x, st.y) < 42) {
-            // Flyg snabbt rakt till stjärnan!
-            s.heroX = lerp(s.heroX, st.x, 0.65);
-            s.heroY = lerp(s.heroY, st.y + 18, 0.65);
-          }
+        // Litet lokalt hopp åt sidan vid tryck i luften; verklig flygning kräver att man drar systern!
+        if (dist(x, y, s.heroX, s.heroY - 36) < 62) {
+          s.targetX = x; s.targetY = y; s.glideT = 0.6;
+          s.vy = -260;
+          playSfx('jump');
+        } else {
+          s.vx = clamp(s.vx + clamp(x - s.heroX, -85, 85) * 1.4, -220, 220);
+          s.face = x >= s.heroX ? 1 : -1;
+          s.vy = -210;
+          s.dragHintT = Math.max(s.dragHintT, 1.1);
+          playSfx('jump');
         }
+        api.particles.burst(s.heroX, s.heroY - 24, 6, { colors: ['#ffffff', '#ffe89c'], speed: 60 });
       },
 
       onMove(x, y) {
-        if (s.targetX !== null) {
+        if (!s.down) return;
+        if (!s.dragged && s.downPos && dist(x, y, s.downPos[0], s.downPos[1]) > 10) s.dragged = true;
+        if (s.dragged) {
           s.targetX = x;
           s.targetY = y;
+          s.glideT = 0.7;
         }
       },
 
       onUp() {
-        s.targetX = null;
-        s.targetY = null;
+        s.down = false;
+        if (s.dragged && s.targetX !== null) s.glideT = Math.max(s.glideT, 0.3);
+        else { s.targetX = null; s.targetY = null; s.glideT = 0; }
+        s.dragged = false;
       },
 
       draw(ctx, T, W, H) {
@@ -250,56 +309,48 @@ export const level06 = {
           }
           ctx.restore();
         }
-        // Studsmoln
+        // Studsmoln + systerns sidomoln + vinstmolnet i mitten
         for (const c of s.clouds) {
           if (c.rainbow > 0) drawGlowRing(ctx, T, c.x, c.y, c.w * 0.5, `rgba(255, 224, 150, ${c.rainbow * 0.65})`);
           drawFluffyCloud(ctx, c.x, c.y, c.w, c.sq);
+        }
+        if (!api.levelWon) {
+          drawFluffyCloud(ctx, pr.x + pr.w * 0.88, pr.y + pr.h * 0.44 + 6, 98, s.buddyJump * 0.5);
+        } else {
+          const gy = groundY(W, H);
+          drawFluffyCloud(ctx, W * 0.5, gy + 8, 250, 0);
         }
 
         // Stjärnor & bärballonger
         for (const st of s.stars) {
           if (!api.won && st.x > 30 && st.x < W - 30) drawGlowRing(ctx, T, st.x, st.y, 26, 'rgba(255, 224, 112, 0.65)');
           if (st.kind === 'berry') {
-            blit(ctx, 'berry', st.x, st.y + 18, { h: 36 });
+            blit(ctx, 'berry', st.x, st.y + 18, { h: 38 });
           } else {
-            ctx.save();
-            ctx.translate(st.x, st.y);
-            ctx.rotate(Math.sin(T * 3 + st.phase) * 0.16);
-            ctx.fillStyle = '#ffe05a';
-            ctx.strokeStyle = '#c4831a';
-            ctx.lineWidth = 2;
-            drawStarPath(ctx, 5, 20, 9);
-            ctx.fill(); ctx.stroke();
-            ctx.restore();
+            blit(ctx, 'star', st.x, st.y + 18, { h: 38, rot: Math.sin(T * 3 + st.phase) * 0.14 });
           }
         }
 
         // Systrarna
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
-        const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.15;
+        const heroScale = Math.min(W, H) < 460 ? 1.20 : 1.32;
 
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          // Andra systern svävar glatt på sidomolnet och hejar!
-          drawHero(ctx, T, pr.x + pr.w * 0.88, pr.y + pr.h * 0.42 + Math.sin(T * 2.6) * 8 - Math.sin(s.buddyJump * Math.PI) * 24, {
-            who: buddyId, scale: heroScale * 0.82, expr: 'skratt', pose: 'cheer', face: -1,
-          });
-          drawHero(ctx, T, s.heroX, s.heroY, {
-            who: leadId, scale: heroScale,
-            expr: s.vy < -80 ? 'skratt' : s.heroExpr,
-            pose: s.vy < -40 ? 'jump' : 'idle',
-            face: s.face,
-          });
+        if (!api.levelWon) {
+          s.stage.lead.expr = s.vy < -80 ? 'skratt' : s.heroExpr;
+          s.stage.buddy.expr = 'skratt';
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon,
+          leadPose: s.vy < -40 ? 'jump' : 'idle',
+          buddyPose: 'cheer',
+        });
 
-        // Pekhand mot närmaste stjärna
-        if (!api.won && (s.caught === 0 || s.idleT > 2.6) && s.stars[0]) {
-          drawGuideHand(ctx, T, s.stars[0].x + 8, s.stars[0].y + 8);
+        // Pekhand visar dragrörelse mot närmaste stjärna
+        if (!api.won && (s.caught === 0 || s.idleT > 2.6 || s.dragHintT > 0) && s.stars[0]) {
+          drawGuideHand(ctx, T, s.heroX, s.heroY - 42, s.stars[0].x, s.stars[0].y);
         }
       },
     };

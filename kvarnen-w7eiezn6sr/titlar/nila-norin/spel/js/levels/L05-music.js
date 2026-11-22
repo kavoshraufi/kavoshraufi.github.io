@@ -1,7 +1,8 @@
 import {
   TAU, clamp, lerp, dist,
-  blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
+  easeOutBack, blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawMushroom, playSfx, playNote, drawIkon,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level05 = {
@@ -39,6 +40,7 @@ export const level05 = {
       flyX: 0,
       flyY: 0,
       inited: false,
+      stage: createHeroStage(),
       shrooms: [
         { i: 0, color: '#e9735e', note: 0, squash: 0, glow: 0, x: 0, y: 0 },
         { i: 1, color: '#f2bb48', note: 1, squash: 0, glow: 0, x: 0, y: 0 },
@@ -57,8 +59,8 @@ export const level05 = {
         m.x = pr.x + pr.w * xs[i];
         m.y = pr.y + pr.h * ys[i];
       });
-      s.heroPos = [pr.x + pr.w * (land ? 0.12 : 0.22), pr.y + pr.h * (land ? 0.78 : 0.88)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.88 : 0.78), pr.y + pr.h * (land ? 0.78 : 0.88)];
+      s.heroPos = [pr.x + pr.w * (land ? 0.13 : 0.20), pr.y + pr.h * (land ? 0.88 : 0.90)];
+      s.buddyPos = [pr.x + pr.w * (land ? 0.87 : 0.80), pr.y + pr.h * (land ? 0.88 : 0.90)];
       s.replayBtn = [pr.x + pr.w * 0.5, pr.y + pr.h * (land ? 0.22 : 0.20)];
       if (!s.inited) {
         const first = s.shrooms[SONGS[0][0]];
@@ -69,6 +71,7 @@ export const level05 = {
         s.demoT = 0.55;
         s.inited = true;
       }
+      s.lastPr = pr;
       return pr;
     }
 
@@ -76,6 +79,7 @@ export const level05 = {
       s.phase = 'demo';
       s.demoIdx = 0;
       s.demoT = 0.45;
+      s.demoWatch = 0;
       s.step = 0;
     }
 
@@ -105,11 +109,18 @@ export const level05 = {
         s.step++;
         if (s.step >= song.length) {
           // Runda klar! Väck ett nytt skogsdjur till gläntan
-          s.fans.push({ id: FRIENDS[s.round], hop: 1, note: s.round + 2 });
+          const fanIdx = s.fans.length;
+          s.fans.push({ id: FRIENDS[s.round], hop: 1, arrive: 0, note: s.round + 2 });
+          if (s.lastPr) {
+            const fx = s.lastPr.x + s.lastPr.w * (0.34 + fanIdx * 0.16);
+            const fy = s.lastPr.y + s.lastPr.h * 0.44;
+            api.particles.burst(fx, fy - 24, 18, { kind: 'star', colors: ['#fff6c8', '#ffe17a', '#b8f0c8', '#ffffff'], speed: 120 });
+          }
           s.round++;
           playSfx('pling');
           s.heroJump = 1;
           s.buddyJump = 1;
+          reactHeroStage(s.stage, 'both', 'skratt', 0.95);
           api.setProgress(s.round);
           if (s.round >= SONGS.length) {
             api.win(3);
@@ -124,15 +135,33 @@ export const level05 = {
       }
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * (W >= H ? 0.88 : 0.90);
+    }
+    function standPoints(W, H) {
+      layout(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroPos[0], gy],
+        buddy: [s.buddyPos[0], gy],
+        winLead: [W * 0.23, gy],
+        winBuddy: [W * 0.77, gy],
+        leadFace: 1, buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
         if (s.heroExprT > 0) { s.heroExprT -= dt; if (s.heroExprT <= 0) s.heroExpr = 'glad'; }
         if (s.heroJump > 0) s.heroJump = Math.max(0, s.heroJump - dt * 2.6);
         if (s.buddyJump > 0) s.buddyJump = Math.max(0, s.buddyJump - dt * 2.6);
-        for (const f of s.fans) if (f.hop > 0) f.hop = Math.max(0, f.hop - dt * 2.8);
+        for (const f of s.fans) { if (f.hop > 0) f.hop = Math.max(0, f.hop - dt * 2.8); if (f.arrive != null && f.arrive < 1) f.arrive = Math.min(1, f.arrive + dt * 2.2); }
         for (let i = s.notes.length - 1; i >= 0; i--) {
           s.notes[i].t += dt * 2.4;
           if (s.notes[i].t >= 1) s.notes.splice(i, 1);
@@ -142,32 +171,42 @@ export const level05 = {
           if (m.glow > 0) m.glow = Math.max(0, m.glow - dt * 1.8);
         }
 
-        if (s.phase === 'demo' && !api.won) {
+        // Use levelWon (not api.won) so a 1 s round-switch does not freeze the demo
+        // and leave the impatient persona with 7+ s of silence.
+        if (s.phase === 'demo' && !api.levelWon) {
           const song = SONGS[s.round];
-          const target = s.shrooms[song[s.demoIdx]];
-          if (target) {
-            s.flyX = lerp(s.flyX, target.x, Math.min(1, dt * 8));
-            s.flyY = lerp(s.flyY, target.y - 54, Math.min(1, dt * 8));
-          }
-          s.demoT -= dt;
-          if (s.demoT <= 0) {
-            if (target) hitShroom(target, true);
-            s.demoIdx++;
-            if (s.demoIdx >= song.length) {
-              s.phase = 'play';
-              s.step = 0;
-            } else {
-              s.demoT = 0.58;
+          if (!song || s.demoIdx >= song.length) {
+            s.phase = 'play';
+            s.step = 0;
+          } else {
+            const target = s.shrooms[song[s.demoIdx]];
+            if (target) {
+              s.flyX = lerp(s.flyX, target.x, Math.min(1, dt * 8));
+              s.flyY = lerp(s.flyY, target.y - 54, Math.min(1, dt * 8));
+            }
+            s.demoT -= dt;
+            s.demoWatch = (s.demoWatch || 0) + dt;
+            if (s.demoT <= 0 || s.demoWatch > 1.4) {
+              if (target) hitShroom(target, true);
+              s.demoWatch = 0;
+              s.demoIdx++;
+              if (s.demoIdx >= song.length) {
+                s.phase = 'play';
+                s.step = 0;
+              } else {
+                s.demoT = 0.58;
+              }
             }
           }
-        } else if (!api.won) {
+        } else if (!api.levelWon) {
           const song = SONGS[s.round];
-          const next = s.shrooms[song[s.step]];
+          const next = song ? s.shrooms[song[s.step]] : null;
           if (next) {
             s.flyX = lerp(s.flyX, next.x, Math.min(1, dt * 6));
             s.flyY = lerp(s.flyY, next.y - 56, Math.min(1, dt * 6));
           }
         }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -252,10 +291,12 @@ export const level05 = {
 
         // Vaknade djurpublik som gungar och sjunger i kör!
         s.fans.forEach((fan, idx) => {
+          const arr = fan.arrive != null ? easeOutBack(clamp(fan.arrive, 0, 1)) : 1;
+          const sc = Math.max(0.15, arr);
           const fx = pr.x + pr.w * (0.34 + idx * 0.16);
           const fy = pr.y + pr.h * 0.44 + Math.sin(T * 5 + idx) * 4 - Math.sin(fan.hop * Math.PI) * 18;
-          drawShadow(ctx, fx, pr.y + pr.h * 0.44 + 2, 20, 6);
-          blit(ctx, fan.id, fx, fy, { h: 66 });
+          drawShadow(ctx, fx, pr.y + pr.h * 0.44 + 2, 20 * sc, 6 * sc);
+          blit(ctx, fan.id, fx, fy, { h: 66 * sc });
         });
 
         // Svampar
@@ -291,28 +332,20 @@ export const level05 = {
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
         const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.15;
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
-            who: leadId, scale: heroScale, expr: s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'cheer',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 26 : 0, face: 1,
-          });
-          drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-            who: buddyId, scale: heroScale * 0.9,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'idle',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 24 : 0, face: -1,
-          });
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon, leadPose: 'idle', buddyPose: 'idle',
+        });
 
         // Pekhand om spelaren pausar
-        if (!api.won && s.phase === 'play' && (s.round === 0 && s.step === 0 || s.idleT > 2.5)) {
-          const next = s.shrooms[SONGS[s.round][s.step]];
+        if (!api.levelWon && (s.idleT > (s.phase === 'demo' ? 1.8 : 2.0) || (s.phase === 'play' && s.round === 0 && s.step === 0))) {
+          const song = SONGS[s.round];
+          const idx = s.phase === 'demo' ? s.demoIdx : s.step;
+          const next = song ? s.shrooms[song[idx]] : null;
           if (next) drawGuideHand(ctx, T, next.x + 8, next.y - 22);
         }
       },

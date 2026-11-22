@@ -2,6 +2,7 @@ import {
   TAU, clamp, dist,
   drawHero, drawGlowRing, drawGuideHand,
   drawStarPath, playSfx, playNote, drawIkon,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level08 = {
@@ -45,6 +46,7 @@ export const level08 = {
       buddyJump: 0,
       doneIcons: [], shootingStars: [],
       skyPts: [],
+      heroStage: createHeroStage(),
     };
 
     function layout(W, H) {
@@ -57,8 +59,8 @@ export const level08 = {
         x: pr.x + pr.w * rx,
         y: pr.y + skyH * ry,
       }));
-      s.heroPos = [pr.x + pr.w * (land ? 0.16 : 0.28), pr.y + pr.h * (land ? 0.90 : 0.86)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.84 : 0.72), pr.y + pr.h * (land ? 0.90 : 0.86)];
+      s.heroPos = [pr.x + pr.w * (land ? 0.18 : 0.26), pr.y + pr.h * 0.87];
+      s.buddyPos = [pr.x + pr.w * (land ? 0.82 : 0.74), pr.y + pr.h * 0.87];
       return pr;
     }
 
@@ -87,13 +89,32 @@ export const level08 = {
         s.buddyJump = 1;
         api.setProgress(s.stage);
         if (s.stage >= CONSTELLATIONS.length) {
+          reactHeroStage(s.heroStage, 'both', 'skratt', 0.95);
           api.win(3);
         }
       }
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * 0.87;
+    }
+    function standPoints(W, H) {
+      layout(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroPos[0], gy],
+        buddy: [s.buddyPos[0], gy],
+        winLead: [W * 0.42, gy],
+        winBuddy: [W * 0.58, gy],
+        leadFace: 1, buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
@@ -107,6 +128,7 @@ export const level08 = {
           st.x += st.vx * dt; st.y += st.vy * dt; st.t -= dt;
           if (st.t <= 0) s.shootingStars.splice(i, 1);
         }
+        updateHeroStage(s.heroStage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -268,28 +290,52 @@ export const level08 = {
           });
         }
 
-        // Båda systrarna på kullen
+        // Mjukt akvarellmålat skymningsmoln & glödande månbåge under systrarnas fötter
+        {
+          const gy = groundY(W, H);
+          const cx = W * 0.5;
+          ctx.save();
+          const mg = ctx.createRadialGradient(cx, gy, 18, cx, gy + 12, pr.w * 0.48);
+          mg.addColorStop(0, 'rgba(255, 242, 194, 0.28)');
+          mg.addColorStop(0.65, 'rgba(164, 190, 240, 0.14)');
+          mg.addColorStop(1, 'rgba(28, 43, 74, 0)');
+          ctx.fillStyle = mg;
+          ctx.beginPath(); ctx.ellipse(cx, gy + 10, pr.w * 0.48, 56, 0, 0, TAU); ctx.fill();
+
+          // Mjukt fluffigt nattmoln i lager som smälter nedåt i bakgrunden
+          const puffs = [
+            [-0.32, 14, 54], [-0.18, 8, 66], [0, 4, 78], [0.18, 8, 66], [0.32, 14, 54],
+          ];
+          const cg = ctx.createLinearGradient(0, gy - 12, 0, gy + 48);
+          cg.addColorStop(0, 'rgba(232, 238, 255, 0.90)');
+          cg.addColorStop(0.45, 'rgba(176, 194, 236, 0.78)');
+          cg.addColorStop(1, 'rgba(42, 58, 98, 0.0)');
+          ctx.fillStyle = cg;
+          for (const [rx, dy, rr] of puffs) {
+            ctx.beginPath(); ctx.ellipse(cx + pr.w * rx, gy + dy + 16, rr, rr * 0.52, 0, 0, TAU); ctx.fill();
+          }
+          // Subtil varm månskensskimmerkant längs ovansidan där fötterna står
+          ctx.strokeStyle = 'rgba(255, 244, 198, 0.42)';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(cx - pr.w * 0.36, gy + 4);
+          ctx.quadraticCurveTo(cx, gy - 8, cx + pr.w * 0.36, gy + 4);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Båda systrarna på månmolnet
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
-        const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.12;
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
-            who: leadId, scale: heroScale, expr: s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'idle',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 26 : 0, face: 1,
-          });
-          drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-            who: buddyId, scale: heroScale * 0.9,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'cheer',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 24 : 0, face: -1,
-          });
+        const heroScale = Math.min(W, H) < 460 ? 1.16 : 1.28;
+        if (!api.levelWon) {
+          s.heroStage.lead.jump = Math.max(s.heroStage.lead.jump, s.heroJump);
+          s.heroStage.buddy.jump = Math.max(s.heroStage.buddy.jump, s.buddyJump);
         }
+        drawHeroStage(ctx, T, s.heroStage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon, leadPose: 'idle', buddyPose: 'cheer',
+        });
 
         // Pekhand
         // Mitt i en stjärnbild visas nästa drag snabbt (0,9 s) — annars hinner barnet tappa tråden.

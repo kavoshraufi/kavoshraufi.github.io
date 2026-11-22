@@ -2,6 +2,7 @@ import {
   TAU, clamp, lerp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawHeartPath, playSfx, playNote,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level07 = {
@@ -29,7 +30,7 @@ export const level07 = {
       heroExprT: 0,
       heroJump: 0,
       buddyJump: 0,
-      inited: false, riverWave: 0,
+      inited: false, riverWave: 0, stage: createHeroStage(),
       slots: [
         { id: 'stone', shape: 'round', x: 0, y: 0, filled: false, popT: 0, note: 0 },
         { id: 'log', shape: 'wide', x: 0, y: 0, filled: false, popT: 0, note: 2 },
@@ -41,9 +42,9 @@ export const level07 = {
         { id: 'stone', shape: 'round', x: 0, y: 0, homeX: 0, homeY: 0, done: false },
       ],
       walkers: [
-        { id: fam[0], prog: 0, targetProg: 0, hop: 0, lastNote: -1, rx: 0.11, ry: 0.50, ex: 0.78, ey: 0.48 },
-        { id: fam[1], prog: 0, targetProg: 0, hop: 0, lastNote: -1, rx: 0.20, ry: 0.62, ex: 0.87, ey: 0.62 },
-        { id: fam[2], prog: 0, targetProg: 0, hop: 0, lastNote: -1, rx: 0.11, ry: 0.76, ex: 0.76, ey: 0.76 },
+        { id: fam[0], prog: 0, targetProg: 0, hop: 0, stepPhase: 0, moving: false, lastNote: -1, rx: 0.11, ry: 0.50, ex: 0.76, ey: 0.50 },
+        { id: fam[1], prog: 0, targetProg: 0, hop: 0, stepPhase: 0, moving: false, lastNote: -1, rx: 0.20, ry: 0.62, ex: 0.85, ey: 0.62 },
+        { id: fam[2], prog: 0, targetProg: 0, hop: 0, stepPhase: 0, moving: false, lastNote: -1, rx: 0.11, ry: 0.75, ex: 0.74, ey: 0.75 },
       ],
     };
 
@@ -69,8 +70,8 @@ export const level07 = {
           p.y = p.homeY;
         }
       });
-      s.heroPos = [pr.x + pr.w * (land ? 0.85 : 0.80), pr.y + pr.h * (land ? 0.64 : 0.78)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.88 : 0.62), pr.y + pr.h * (land ? 0.82 : 0.82)];
+      s.heroPos = [pr.x + pr.w * (land ? 0.84 : 0.76), pr.y + pr.h * (land ? 0.88 : 0.89)];
+      s.buddyPos = [pr.x + pr.w * (land ? 0.93 : 0.88), pr.y + pr.h * (land ? 0.88 : 0.89)];
       s.inited = true;
       return pr;
     }
@@ -139,12 +140,32 @@ export const level07 = {
       if (s.placed >= 2) s.walkers[1].targetProg = s.placed >= 3 ? 1 : 0.55;
       if (s.placed >= 3) {
         s.walkers.forEach((w) => { w.targetProg = 1; });
+        reactHeroStage(s.stage, 'both', 'skratt', 0.9);
         api.win(3);
       }
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * (W >= H ? 0.88 : 0.89);
+    }
+    function standPoints(W, H) {
+      layout(W, H);
+      const pr = api.playRect(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroPos[0], gy],
+        buddy: [s.buddyPos[0], gy],
+        winLead: [pr.x + pr.w * 0.24, gy],
+        winBuddy: [pr.x + pr.w * 0.78, gy],
+        leadFace: -1, buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
@@ -155,13 +176,17 @@ export const level07 = {
         for (const sl of s.slots) if (sl.popT > 0) sl.popT = Math.max(0, sl.popT - dt * 3.5);
         for (const w of s.walkers) {
           if (w.hop > 0) w.hop = Math.max(0, w.hop - dt * 2.6);
-          w.prog = lerp(w.prog, w.targetProg, Math.min(1, dt * 2.2));
+          const prevP = w.prog;
+          w.prog = lerp(w.prog, w.targetProg, Math.min(1, dt * 1.9));
+          w.moving = Math.abs(w.targetProg - w.prog) > 0.012 || Math.abs(w.prog - prevP) > 0.001;
+          if (w.moving) w.stepPhase += dt * 11;
           const stepIdx = w.prog > 0.68 ? 2 : w.prog > 0.50 ? 1 : w.prog > 0.34 ? 0 : -1;
           if (stepIdx > w.lastNote && s.slots[stepIdx]?.filled) {
             w.lastNote = stepIdx;
             s.slots[stepIdx].popT = 0.7;
           }
         }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -274,19 +299,24 @@ export const level07 = {
           }
         }
 
-        // Djur som går över bäcken till systrarna!
+        // Djur som trippar/hoppar över bäcken med squash-och-stretch-steg!
+        const WH = { bear: 74, fox: 62, owl: 56, bunny: 52, hedge: 48, 'fox-baby': 44, 'bunny-baby': 42, 'owl-baby': 42, 'hedge-baby': 40 };
         s.walkers.forEach((w, idx) => {
           const sx = pr.x + pr.w * w.rx;
           const sy = pr.y + pr.h * w.ry;
           const ex = pr.x + pr.w * w.ex;
           const ey = pr.y + pr.h * w.ey;
           const wx = lerp(sx, ex, w.prog);
-          const wy = lerp(sy, ey, w.prog) - (w.prog > 0 && w.prog < 1 ? Math.abs(Math.sin(w.prog * Math.PI * 5)) * 12 : 0) - Math.sin(w.hop * Math.PI) * 18;
-          drawShadow(ctx, wx, wy + 2, 18, 5);
-          blit(ctx, w.id, wx, wy, { h: 62, face: 1 });
+          const baseY = lerp(sy, ey, w.prog);
+          const gait = w.moving ? Math.abs(Math.sin(w.stepPhase)) : 0;
+          const wy = baseY - gait * 13 - Math.sin(w.hop * Math.PI) * 18;
+          const tilt = w.moving ? Math.sin(w.stepPhase) * 0.08 : Math.sin(T * 2 + idx) * 0.02;
+          const sq = w.moving ? (1 + Math.cos(w.stepPhase * 2) * 0.06) : 1;
+          drawShadow(ctx, wx, baseY + 2, 18 - gait * 3, 5);
+          blit(ctx, w.id, wx, wy, { h: (WH[w.id] || 56) * sq, rot: tilt, face: 1 });
           if (w.prog > 0.95) {
             ctx.save();
-            ctx.translate(wx, wy - 64 + Math.sin(T * 3 + idx) * 4);
+            ctx.translate(wx, wy - (WH[w.id] || 56) - 6 + Math.sin(T * 3 + idx) * 4);
             ctx.fillStyle = '#ff7da4';
             drawHeartPath(ctx, 8);
             ctx.fill();
@@ -294,28 +324,18 @@ export const level07 = {
           }
         });
 
-        // Systrarna på högra stranden (eller dansar mitt i glädjen vid vinst)
+        // Systrarna står stadigt på stranden (och firar på vänstra & högra strandbanken vid vinst)
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
-        const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.14;
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
-            who: leadId, scale: heroScale, expr: s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'cheer',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 26 : 0, face: -1,
-          });
-          drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-            who: buddyId, scale: heroScale * 0.88,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'idle',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 24 : 0, face: -1,
-          });
+        const heroScale = Math.min(W, H) < 460 ? 1.18 : 1.30;
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon, leadPose: 'cheer', buddyPose: 'idle',
+        });
 
         // Brodelar att dra
         for (const p of s.pieces) {
