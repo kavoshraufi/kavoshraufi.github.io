@@ -1,7 +1,7 @@
 import {
   TAU, clamp, lerp, dist,
   drawBgPlate, getPlayRect, drawHero, drawGlowRing, drawGuideHand, drawShadow,
-  playSfx, save,
+  playSfx, save, blit, drawIkon,
 } from './core.js';
 
 export class MapScene {
@@ -181,10 +181,7 @@ export class MapScene {
 
       // Ikon
       ctx.globalAlpha = unlocked ? 1 : 0.45;
-      ctx.font = `${Math.round(n.r * 0.92)}px system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(unlocked ? n.lv.icon : '🔒', nx, ny + 1);
+      drawIkon(ctx, unlocked ? n.lv.art : 'hanglas', nx, ny + 1, n.r * 1.25, { noTrack: true });
       ctx.restore();
 
       // Titel-etikett + stjärnor under noden
@@ -208,9 +205,8 @@ export class MapScene {
       for (let k = 0; k < 3; k++) {
         const sx2 = nx + (k - 1) * 12;
         const sy2 = ny - n.r - 5 + Math.abs(k - 1) * 2;
-        ctx.font = '12px system-ui, sans-serif';
-        ctx.fillStyle = k < st ? '#f0a81e' : 'rgba(130, 110, 82, 0.35)';
-        ctx.fillText(k < st ? '★' : '☆', sx2, sy2);
+        // Målad stjärna (atlas) — släckt och genomskinlig för ej tagna stjärnor
+        blit(ctx, 'star', sx2, sy2 + 7, { h: 14, alpha: k < st ? 1 : 0.28, noTrack: true });
       }
       ctx.restore();
     }
