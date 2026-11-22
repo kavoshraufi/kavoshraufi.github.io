@@ -2,6 +2,7 @@ import {
   TAU, clamp, lerp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawWatercolorBubble, drawBasket, playSfx, playNote,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level02 = {
@@ -36,6 +37,7 @@ export const level02 = {
       flyers: [],
       basketBounce: 0,
       nextTreatIdx: 0,
+      stage: createHeroStage(),
     };
 
     function spawnBubble(W, H, initial = false) {
@@ -62,14 +64,14 @@ export const level02 = {
       const land = W >= H;
       return {
         pr,
-        heroX: pr.x + pr.w * (land ? 0.16 : 0.20),
-        heroY: pr.y + pr.h * (land ? 0.78 : 0.84),
-        buddyX: pr.x + pr.w * (land ? 0.84 : 0.80),
-        buddyY: pr.y + pr.h * (land ? 0.74 : 0.80),
-        basketX: pr.x + pr.w * (land ? 0.26 : 0.28),
-        basketY: pr.y + pr.h * (land ? 0.80 : 0.86),
-        boatX: pr.x + pr.w * (0.30 + 0.44 * clamp(s.popped / G, 0, 1)) + Math.sin(s.boatProg * 2) * 10,
-        boatY: pr.y + pr.h * (0.72 + Math.sin(s.boatProg) * 0.06),
+        heroX: pr.x + pr.w * (land ? 0.14 : 0.18),
+        heroY: pr.y + pr.h * (land ? 0.89 : 0.91),
+        buddyX: pr.x + pr.w * (land ? 0.86 : 0.82),
+        buddyY: pr.y + pr.h * (land ? 0.89 : 0.91),
+        basketX: pr.x + pr.w * (land ? 0.25 : 0.30),
+        basketY: pr.y + pr.h * (land ? 0.89 : 0.91),
+        boatX: pr.x + pr.w * (0.38 + 0.34 * clamp(s.popped / G, 0, 1)) + Math.sin(s.boatProg * 2) * 10,
+        boatY: pr.y + pr.h * (0.71 + Math.sin(s.boatProg) * 0.04),
       };
     }
 
@@ -82,6 +84,7 @@ export const level02 = {
       s.heroExpr = 'skratt';
       s.heroExprT = 0.8;
       s.heroJump = 0.65;
+      reactHeroStage(s.stage, 'lead', 'skratt', 0.65);
       if (b.treat && !api.won) {
         s.boatProg += 0.45;
         s.boatWaveT = 0.7;
@@ -96,8 +99,26 @@ export const level02 = {
       }
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * (W >= H ? 0.89 : 0.91);
+    }
+    function standPoints(W, H) {
+      const pts = layoutPts(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [pts.heroX, gy],
+        buddy: [pts.buddyX, gy],
+        winLead: [pts.pr.x + pts.pr.w * 0.29, gy],
+        winBuddy: [pts.pr.x + pts.pr.w * 0.74, gy],
+        leadFace: 1, buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         if (s.bubbles.length === 0) {
           for (let i = 0; i < 5; i++) spawnBubble(W, H, true);
@@ -153,7 +174,14 @@ export const level02 = {
 
         for (let i = s.flyers.length - 1; i >= 0; i--) {
           const f = s.flyers[i];
-          f.t += dt * 2.4;
+          f.t += dt * 1.55;
+          const u = Math.min(1, f.t);
+          const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+          const fx = lerp(f.ax, f.bx, e);
+          const fy = lerp(f.ay, f.by, e) - Math.sin(e * Math.PI) * 86;
+          if (Math.random() < 0.65) {
+            api.particles.burst(fx, fy, 1, { colors: ["#ffe272", "#fff6cc", "#ff9ec4"], speed: 24, size: 3 });
+          }
           if (f.t >= 1) {
             s.flyers.splice(i, 1);
             s.basketBounce = 1;
@@ -164,6 +192,7 @@ export const level02 = {
               api.setProgress(s.popped);
               if (s.popped >= G) {
                 s.buddyJump = 1;
+                reactHeroStage(s.stage, 'both', 'skratt', 0.9);
                 api.win(3);
               }
             }
@@ -174,6 +203,7 @@ export const level02 = {
           s.ripples[i].t += dt * 1.4;
           if (s.ripples[i].t >= 1) s.ripples.splice(i, 1);
         }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -267,15 +297,46 @@ export const level02 = {
         }
         ctx.restore();
 
-        // Sjungande trampstenar i bäcken
-        for (const st of s.stones) {
+        // Målade näckrosblad i bäcken som spelar toner
+        for (let idx = 0; idx < s.stones.length; idx++) {
+          const st = s.stones[idx];
           const sx = pts.pr.x + pts.pr.w * st.rx;
-          const sy = pts.pr.y + pts.pr.h * st.ry - Math.sin(st.pop * Math.PI) * 8;
+          const sy = pts.pr.y + pts.pr.h * st.ry - Math.sin(st.pop * Math.PI) * 8 + Math.sin(T * 2 + idx) * 1.5;
           ctx.save();
-          ctx.fillStyle = '#b6c3bc';
-          ctx.strokeStyle = '#5a6c64';
-          ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.ellipse(sx, sy, 20, 11, 0, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.translate(sx, sy);
+          // Vattenskugga under näckrosbladet
+          ctx.fillStyle = 'rgba(32, 74, 68, 0.22)';
+          ctx.beginPath(); ctx.ellipse(2, 4, 24, 12, 0, 0, TAU); ctx.fill();
+          // Näckrosblad med flik (akvarellton)
+          const lg = ctx.createRadialGradient(-4, -3, 2, 0, 0, 24);
+          lg.addColorStop(0, '#9dd886');
+          lg.addColorStop(0.65, '#69b05d');
+          lg.addColorStop(1, '#488749');
+          ctx.fillStyle = lg;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.ellipse(0, 0, 23, 12, 0, 0.28 + idx * 0.4, TAU - 0.18 + idx * 0.4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(52, 98, 52, 0.55)';
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+          // Bladnerver
+          ctx.strokeStyle = 'rgba(210, 244, 186, 0.45)';
+          ctx.lineWidth = 1;
+          for (let v = -1; v <= 1; v++) {
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(v * 11 - 6, v * 5 - 2); ctx.stroke();
+          }
+          // Liten rosa näckrosblomma på mittersta bladet
+          if (idx === 1) {
+            for (let p = 0; p < 5; p++) {
+              const a = (p / 5) * TAU + 0.2;
+              ctx.fillStyle = 'rgba(255, 204, 222, 0.92)';
+              ctx.beginPath(); ctx.ellipse(Math.cos(a) * 5, -3 + Math.sin(a) * 3, 4.5, 2.8, a, 0, TAU); ctx.fill();
+            }
+            ctx.fillStyle = '#ffe072';
+            ctx.beginPath(); ctx.arc(0, -3, 2.6, 0, TAU); ctx.fill();
+          }
           ctx.restore();
         }
 
@@ -298,12 +359,13 @@ export const level02 = {
           blit(ctx, s.cargo, pts.boatX - 10, pts.boatY + 6 + Math.sin(T * 3) * 3, { h: 24 });
         }
 
-        // Picknickkorg
+        // Picknickkorg med varm glöd när skatter flyger in
         const bSc = 1 + Math.sin(s.basketBounce * Math.PI) * 0.18;
+        if (s.flyers.length > 0) drawGlowRing(ctx, T, pts.basketX, pts.basketY - 6, 42, 'rgba(255, 226, 130, 0.72)');
         ctx.save();
         ctx.translate(pts.basketX, pts.basketY);
         ctx.scale(bSc, 2 - bSc);
-        drawBasket(ctx, 0, 0, 26, '#f295ad');
+        drawBasket(ctx, 0, 0, 33, '#f295ad');
         ctx.restore();
 
         // Båda systrarna
@@ -311,29 +373,15 @@ export const level02 = {
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
         const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.16;
 
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pts.pr.y + pts.pr.h * 0.56, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pts.pr.y + pts.pr.h * 0.56, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, pts.heroX, pts.heroY, {
-            who: leadId,
-            scale: heroScale,
-            expr: s.idleT > 2.5 ? 'busig' : s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'cheer',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 28 : 0,
-            face: 1,
-          });
-          drawHero(ctx, T, pts.buddyX, pts.buddyY, {
-            who: buddyId,
-            scale: heroScale * 0.9,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'idle',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 26 : 0,
-            face: -1,
-          });
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
+          if (s.idleT > 2.5) s.stage.lead.expr = 'busig';
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon, leadPose: 'idle', buddyPose: 'idle',
+        });
 
         // Bubblor med skatter inuti
         for (const b of s.bubbles) {
@@ -344,11 +392,14 @@ export const level02 = {
           drawWatercolorBubble(ctx, T, b.x, b.y, b.r, b.hue);
         }
 
-        // Flygande skatter till korgen
+        // Flygande skatter bågar magnetiskt ned i picknickkorgen
         for (const f of s.flyers) {
-          const fx = lerp(f.ax, f.bx, f.t);
-          const fy = lerp(f.ay, f.by, f.t) - Math.sin(f.t * Math.PI) * 48;
-          blit(ctx, f.treat, fx, fy + 16, { h: 36 });
+          const u = Math.min(1, f.t);
+          const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+          const fx = lerp(f.ax, f.bx, e);
+          const fy = lerp(f.ay, f.by, e) - Math.sin(e * Math.PI) * 86;
+          drawGlowRing(ctx, T, fx, fy, 22, 'rgba(255, 228, 128, 0.7)');
+          blit(ctx, f.treat, fx, fy + 14, { h: 34 * (1 - u * 0.25) });
         }
 
         // Pekhand på första bubblan om man tvekar

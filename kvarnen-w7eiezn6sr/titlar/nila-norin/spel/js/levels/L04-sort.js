@@ -2,6 +2,7 @@ import {
   TAU, clamp, lerp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawBasket, drawStarPath, playSfx, playNote,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level04 = {
@@ -38,6 +39,7 @@ export const level04 = {
       heroJump: 0,
       buddyJump: 0,
       inited: false,
+      stage: createHeroStage(),
       baskets: GROUPS.map((g, i) => ({ ...g, i, x: 0, y: 0, count: 0, bounce: 0 })),
       items: [],
       wish: null,        // { group, friend, popT }
@@ -89,8 +91,9 @@ export const level04 = {
         it.x = pr.x + pr.w * rx;
         it.y = pr.y + pr.h * ry;
       });
-      s.heroPos = [pr.x + pr.w * (land ? 0.08 : 0.14), pr.y + pr.h * (land ? 0.84 : 0.90)];
-      s.buddyPos = [pr.x + pr.w * (land ? 0.92 : 0.86), pr.y + pr.h * (land ? 0.84 : 0.90)];
+      // Stand on the wooden floor beside the rug, not in the tree trunks.
+      s.heroPos = [pr.x + pr.w * (land ? 0.16 : 0.20), pr.y + pr.h * 0.935];
+      s.buddyPos = [pr.x + pr.w * (land ? 0.84 : 0.80), pr.y + pr.h * 0.935];
       s.winPos = [pr.x + pr.w * (land ? 0.27 : 0.28), pr.y + pr.h * (land ? 0.28 : 0.16)];
       s.inited = true;
       return pr;
@@ -122,6 +125,36 @@ export const level04 = {
       ctx.restore();
     }
 
+
+    function drawWishIcon(ctx, kind, x, y, sc) {
+      // Drawn without a drop shadow so the star / berry / acorn stays
+      // clearly visible on the cream bubble. Never use drawTreasure here:
+      // its shadow and footprint offset can hide the icon inside the ellipse.
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(sc, sc);
+      if (kind === 'star') {
+        ctx.fillStyle = '#ffd554';
+        ctx.strokeStyle = '#b47418';
+        ctx.lineWidth = 2.2;
+        ctx.shadowColor = 'transparent';
+        drawStarPath(ctx, 5, 16, 7);
+        ctx.fill();
+        ctx.stroke();
+      } else if (kind === 'berry') {
+        blit(ctx, 'berry', 0, 8, { h: 28, noTrack: true });
+      } else {
+        ctx.fillStyle = '#c88c4c';
+        ctx.strokeStyle = '#5c3c1e';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(0, 4, 10, 12, 0, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#734b28';
+        ctx.beginPath(); ctx.ellipse(0, -6, 12, 7, 0, Math.PI, TAU); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, -13); ctx.lineTo(1.5, -18); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     function drawBasketBadge(ctx, g, bx, by, br) {
       drawTreasure(ctx, { kind: g.kind }, bx, by + br * 0.14, 0.62);
     }
@@ -140,17 +173,41 @@ export const level04 = {
       b.bounce = 1;
       s.sorted++;
       s.buddyJump = 0.8;
+      reactHeroStage(s.stage, 'both', 'skratt', 0.75);
       playSfx('heart');
       playNote(s.sorted - 1, 0.32);
       api.particles.burst(b.x, b.y - 12, 14, { kind: 'heart', colors: [b.color, '#ffe17a', '#ffffff'] });
       api.setProgress(s.sorted);
       s.flying = null;
+      if (s.wish && s.wish.groups) {
+        const gi = s.wish.groups.indexOf(f.it.group);
+        if (gi >= 0) s.wish.groups.splice(gi, 1);
+        s.wish.group = s.wish.groups[0] || null;
+      }
       if (s.sorted >= N) api.win();
       else if (!s.wish || !s.wish.groups.length) nyOnskan();
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * 0.935;
+    }
+    function standPoints(W, H) {
+      layout(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroPos[0], gy],
+        buddy: [s.buddyPos[0], gy],
+        winLead: [W * 0.42, gy],
+        winBuddy: [W * 0.58, gy],
+        leadFace: 1, buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
@@ -162,6 +219,7 @@ export const level04 = {
         if (s.wiggle) { s.wiggle.t -= dt; if (s.wiggle.t <= 0) s.wiggle = null; }
         for (const b of s.baskets) if (b.bounce > 0) b.bounce = Math.max(0, b.bounce - dt * 4);
         if (s.flying) { s.flying.t += dt * 2.4; if (s.flying.t >= 1) landat(s.flying); }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -226,8 +284,7 @@ export const level04 = {
         const nearTarget = s.baskets.some((b) => dist(x, y, b.x, b.y) < 62) || (s.winPos && dist(x, y, s.winPos[0], s.winPos[1]) < 80);
         const gi = s.wish ? s.wish.groups.indexOf(it.group) : -1;
         if (gi >= 0 && (quickTap || nearTarget)) {
-          s.wish.groups.splice(gi, 1);
-          s.wish.group = s.wish.groups[0] || null;
+          // Keep the wish icon visible in the bubble until the item lands.
           skicka(it);
         } else if (gi < 0 && (quickTap || nearTarget)) {
           s.wiggle = { it, t: 0.45 };
@@ -249,51 +306,49 @@ export const level04 = {
           ctx.restore();
         }
 
-        // Vännen i fönstret med sin önskebubbla
-        if (s.wish && s.winPos) {
+        // Vännen i fönstret med sin önskebubbla — never an empty bubble.
+        if (s.wish && s.winPos && !api.levelWon) {
+          if (!(s.wish.groups || []).length) nyOnskan();
           const [wx, wy] = s.winPos;
-          const pop = 1 + Math.sin(s.wish.popT * Math.PI) * 0.18;
           blit(ctx, s.wish.friend, wx, wy + 30 - Math.sin(T * 2.2) * 3 - s.winBirdT * 8, { h: 60 });
-          const bx = wx + 66, by = wy - 22;
-          ctx.save();
-          ctx.translate(bx, by);
-          ctx.scale(pop, pop);
-          ctx.fillStyle = 'rgba(255, 252, 240, 0.96)';
-          ctx.strokeStyle = 'rgba(122, 86, 40, 0.55)';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath(); ctx.ellipse(0, 0, 32, 27, 0, 0, TAU); ctx.fill(); ctx.stroke();
-          ctx.beginPath(); ctx.arc(-30, 20, 6, 0, TAU); ctx.fill(); ctx.stroke();
-          ctx.beginPath(); ctx.arc(-40, 30, 3.5, 0, TAU); ctx.fill(); ctx.stroke();
-          const gs = s.wish.groups;
-          gs.forEach((gid, k) => {
-            const g = GROUPS.find((x) => x.id === gid);
-            drawTreasure(ctx, { kind: g.kind }, gs.length > 1 ? (k ? 13 : -13) : 0, -2, gs.length > 1 ? 0.72 : 0.95);
-          });
-          ctx.restore();
+          const gs = (s.wish.groups || []).filter(Boolean);
+          if (gs.length) {
+            const pop = 1 + Math.sin(s.wish.popT * Math.PI) * 0.18;
+            const bx = wx + 66, by = wy - 22;
+            ctx.save();
+            ctx.translate(bx, by);
+            ctx.scale(pop, pop);
+            ctx.fillStyle = 'rgba(255, 252, 240, 0.96)';
+            ctx.strokeStyle = 'rgba(122, 86, 40, 0.55)';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.ellipse(0, 0, 32, 27, 0, 0, TAU); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.arc(-30, 20, 6, 0, TAU); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.arc(-40, 30, 3.5, 0, TAU); ctx.fill(); ctx.stroke();
+            ctx.save();
+            ctx.beginPath(); ctx.ellipse(0, 0, 30, 25, 0, 0, TAU); ctx.clip();
+            gs.forEach((gid, k) => {
+              const g = GROUPS.find((x) => x.id === gid);
+              if (!g) return;
+              const ix = gs.length > 1 ? (k ? 13 : -13) : 0;
+              drawWishIcon(ctx, g.kind, ix, 0, gs.length > 1 ? 0.78 : 1);
+            });
+            ctx.restore();
+            ctx.restore();
+          }
         }
 
         // Båda systrarna
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
         const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.15;
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
-            who: leadId, scale: heroScale, expr: s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'idle',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 26 : 0, face: 1,
-          });
-          drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-            who: buddyId, scale: heroScale * 0.9,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'cheer',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 24 : 0, face: -1,
-          });
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon, leadPose: 'idle', buddyPose: 'idle',
+        });
 
         // Saker på mattan
         for (const it of s.items) {

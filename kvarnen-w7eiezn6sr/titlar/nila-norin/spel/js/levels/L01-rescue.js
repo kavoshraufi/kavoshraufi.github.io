@@ -2,6 +2,7 @@ import {
   TAU, clamp, lerp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand,
   drawMushroom, drawHeartPath, playSfx, playNote,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level01 = {
@@ -44,6 +45,7 @@ export const level01 = {
         { id: 'fox', hid: true, peekT: 0, hideKind: 'flower', reunited: false, popT: 0, hugT: 0, shakeT: 0, callT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
         { id: 'hedge', hid: true, peekT: 0, hideKind: 'log', reunited: false, popT: 0, hugT: 0, shakeT: 0, callT: 0, x: 0, y: 0, mx: 0, my: 0, hx: 0, hy: 0 },
       ],
+      stage: createHeroStage(),
       shrooms: [
         { rx: 0.16, ry: 0.85, color: '#e66c5a', squash: 0, note: 0 },
         { rx: 0.38, ry: 0.89, color: '#f0b84c', squash: 0, note: 2 },
@@ -75,7 +77,7 @@ export const level01 = {
         foxM: P(0.18, 0.44), foxH: P(0.50, 0.27),
         hedgeM: P(0.79, 0.82), hedgeH: P(0.27, 0.78),
         creek: P(0.15, 0.64), flowers: P(0.54, 0.66),
-        buddy: P(0.85, 0.44), hero0: P(0.52, 0.88),
+        buddy: P(0.87, 0.89), hero0: P(0.14, 0.89),
       };
 
       // Rundor: ungarna gömmer sig på nya ställen varje runda (gömställena roterar).
@@ -124,6 +126,7 @@ export const level01 = {
       s.heroExpr = expr;
       s.heroExprT = 1.1;
       if (jump > 0) s.heroJump = Math.max(s.heroJump, jump);
+      reactHeroStage(s.stage, 'lead', expr, jump);
     }
 
     function reunite(a) {
@@ -140,6 +143,7 @@ export const level01 = {
       s.buddyExpr = 'skratt';
       s.buddyExprT = 1.2;
       s.buddyJump = 1;
+      reactHeroStage(s.stage, 'both', 'skratt', 0.9);
       api.particles.burst(a.mx, a.my - 28, 18, { kind: 'heart', colors: ['#ff88aa', '#ffe17a', '#ffbad2'] });
       const done = s.animals.filter((x) => x.reunited).length;
       api.setProgress(done);
@@ -148,8 +152,27 @@ export const level01 = {
       }
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return pr.y + pr.h * (W >= H ? 0.89 : 0.90);
+    }
+    function standPoints(W, H) {
+      const pr = api.playRect(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroX || pr.x + pr.w * 0.14, s.heroY || gy],
+        buddy: [pr.x + pr.w * 0.87, gy],
+        winLead: [W * 0.42, gy],
+        winBuddy: [W * 0.58, gy],
+        leadFace: s.heroFace,
+        buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
@@ -188,14 +211,16 @@ export const level01 = {
           const side = s.heroFace >= 0 ? 34 : -34;
           s.carried.x = lerp(s.carried.x, s.heroX + side, Math.min(1, dt * 14));
           s.carried.y = lerp(s.carried.y, s.heroY - 34, Math.min(1, dt * 14));
-        } else if (api.won) {
-          tx = W * 0.44;
-          ty = pr.y + pr.h * 0.68;
+        } else if (!api.levelWon) {
+          ty = groundY(W, H);
         }
         const dx = tx - s.heroX;
         if (Math.abs(dx) > 4) s.heroFace = dx >= 0 ? 1 : -1;
         s.heroX = lerp(s.heroX, tx, Math.min(1, dt * 7));
         s.heroY = lerp(s.heroY, ty, Math.min(1, dt * 7));
+        const pts = standPoints(W, H);
+        if (!api.levelWon) { s.stage.lead.x = s.heroX; s.stage.lead.y = s.heroY; s.stage.lead.face = s.heroFace; s.stage.lead.init = true; }
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts, syncPlay: false });
       },
 
       onDown(x, y, W, H) {
@@ -573,34 +598,19 @@ export const level01 = {
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
         const heroScale = Math.min(W, H) < 460 ? 1.05 : 1.22;
 
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.55);
-          drawHero(ctx, T, W * 0.43, api.playRect(W, H).y + api.playRect(W, H).h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, api.playRect(W, H).y + api.playRect(W, H).h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          if (s.buddyPos) {
-            const bBob = s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 26 : 0;
-            drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-              who: buddyId,
-              scale: heroScale * 0.85,
-              expr: s.buddyExpr,
-              pose: s.buddyJump > 0 ? 'jump' : 'cheer',
-              bob: bBob,
-              face: s.buddyPos[0] > W * 0.5 ? -1 : 1,
-            });
-          }
-          const hBob = s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 32 : 0;
-          drawHero(ctx, T, s.heroX, s.heroY, {
-            who: leadId,
-            scale: heroScale,
-            expr: s.idleT > 2.8 ? 'busig' : s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : (s.dragging ? 'walk' : 'idle'),
-            phase: T * 2.2,
-            bob: hBob,
-            face: s.heroFace,
-          });
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
+          if (s.idleT > 2.8) s.stage.lead.expr = 'busig';
+          else if (s.heroExprT > 0) s.stage.lead.expr = s.heroExpr;
+          s.stage.lead.walkPhase = T * 2.2;
         }
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale * 0.94,
+          won: api.levelWon,
+          leadPose: s.dragging ? 'walk' : 'idle',
+          buddyPose: 'idle',
+        });
 
         // Rita djurungarna (framför/vid systern)
         for (const a of s.animals) {

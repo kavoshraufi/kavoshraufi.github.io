@@ -2,6 +2,7 @@ import {
   TAU, clamp, lerp, dist,
   blit, drawHero, drawShadow, drawGlowRing, drawGuideHand, drawGuideHold,
   drawWateringCan, playSfx, playNote, bgPoint,
+  createHeroStage, updateHeroStage, drawHeroStage, reactHeroStage,
 } from '../core.js';
 
 export const level03 = {
@@ -20,7 +21,7 @@ export const level03 = {
     // 1.9: ny kärnverb — HÅLL KVAR. Tryck på en bädd så sår systrarna (välj gärna färg på en fröpåse först),
     // och HÅLL sedan fingret på bädden: kannan häller och blomman växer så länge du håller.
     const R = api.round || 1;
-    const RATE = 0.92 / (R === 1 ? 1.1 : R === 2 ? 1.4 : 1.7); // vatten/s medan man håller
+    const RATE = 1.65 / (R === 1 ? 1.0 : R === 2 ? 1.18 : 1.35); // vatten/s medan man håller
     const KINDS = [
       { id: 'yellow', color: '#ffd24c', center: '#a85d1a', name: 'Solros' },
       { id: 'pink', color: '#ff78a8', center: '#ffe88a', name: 'Tulpan' },
@@ -53,6 +54,7 @@ export const level03 = {
       packets: KINDS.map((k, i) => ({ ...k, i, x: 0, y: 0, homeX: 0, homeY: 0, used: false })),
       butterfly: { x: 0, y: 0, tx: 0, ty: 0 },
       inited: false,
+      stage: createHeroStage(),
     };
 
     function layout(W, H) {
@@ -60,12 +62,12 @@ export const level03 = {
       const land = W >= H;
       if (land) {
         // Bäddar, påsar och kanna enbart som interaktiva objekt på den rena gräsmattan, till höger om stenstigen.
-        const bedPts = [[360, 336], [460, 318], [560, 318], [650, 336]];
+        const bedPts = [[305, 338], [392, 320], [482, 320], [568, 338]];
         s.beds.forEach((b, i) => {
           const p = bgPoint(W, H, 'tradgard', bedPts[i][0], bedPts[i][1]);
           b.x = p.x; b.y = Math.min(p.y, pr.y + pr.h - 24);
         });
-        const pktXs = [360, 430, 500, 570];
+        const pktXs = [310, 385, 460, 535];
         s.packets.forEach((p, i) => {
           const q = bgPoint(W, H, 'tradgard', pktXs[i], 258);
           p.homeX = q.x; p.homeY = q.y;
@@ -74,16 +76,17 @@ export const level03 = {
             p.y = p.homeY;
           }
         });
-        const ch = bgPoint(W, H, 'tradgard', 655, 248);
+        const ch = bgPoint(W, H, 'tradgard', 232, 258);
         s.canHomeX = ch.x; s.canHomeY = ch.y;
         if (!s.canHeld) {
           s.canX = s.canHomeX;
           s.canY = s.canHomeY;
         }
-        const hp = bgPoint(W, H, 'tradgard', 90, 368);
-        const bp = bgPoint(W, H, 'tradgard', 690, 368);
-        s.heroPos = [hp.x, Math.min(hp.y, pr.y + pr.h)];
-        s.buddyPos = [bp.x, Math.min(bp.y, pr.y + pr.h)];
+        const gy = Math.min(bgPoint(W, H, 'tradgard', 390, 374).y, pr.y + pr.h);
+        const hp = bgPoint(W, H, 'tradgard', 90, 374);
+        const bp = bgPoint(W, H, 'tradgard', 700, 374);
+        s.heroPos = [hp.x, gy];
+        s.buddyPos = [bp.x, gy];
       } else {
         const bedXs = [0.24, 0.76, 0.24, 0.76];
         const bedYs = [0.42, 0.42, 0.62, 0.62];
@@ -105,8 +108,8 @@ export const level03 = {
           s.canX = s.canHomeX;
           s.canY = s.canHomeY;
         }
-        s.heroPos = [pr.x + pr.w * 0.17, pr.y + pr.h * 0.88];
-        s.buddyPos = [pr.x + pr.w * 0.83, pr.y + pr.h * 0.88];
+        s.heroPos = [pr.x + pr.w * 0.17, pr.y + pr.h * 0.90];
+        s.buddyPos = [pr.x + pr.w * 0.83, pr.y + pr.h * 0.90];
       }
       if (!s.inited) {
         s.butterfly.x = pr.x + pr.w * 0.5;
@@ -121,7 +124,7 @@ export const level03 = {
     function drawBloom(ctx, T, b) {
       if (!b.kind) return;
       const g = b.water; // 0..1
-      const h = 14 + g * 48;
+      const h = 10 + g * 28;
       ctx.save();
       ctx.translate(b.x, b.y - 6);
       // Stjälk
@@ -149,11 +152,11 @@ export const level03 = {
           ctx.strokeStyle = 'rgba(80, 50, 20, 0.35)';
           ctx.lineWidth = 1.4;
           ctx.beginPath();
-          ctx.ellipse(Math.cos(ang) * 14, Math.sin(ang) * 14, 10, 6.5, ang, 0, TAU);
+          ctx.ellipse(Math.cos(ang) * 10.5, Math.sin(ang) * 10.5, 7.5, 5, ang, 0, TAU);
           ctx.fill(); ctx.stroke();
         }
         ctx.fillStyle = b.kind.center;
-        ctx.beginPath(); ctx.arc(0, 0, 8.5, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.fill();
       } else {
         // Knopp som sväller
         ctx.fillStyle = b.kind.color;
@@ -207,6 +210,7 @@ export const level03 = {
         s.heroExprT = 1.1;
         s.heroJump = 1;
         s.buddyJump = 0.9;
+        reactHeroStage(s.stage, 'both', 'skratt', 0.95);
         playSfx('pling');
         bloomMagic(bed);
         s.butterfly.tx = bed.x;
@@ -217,8 +221,26 @@ export const level03 = {
       }
     }
 
+    function groundY(W, H) {
+      const pr = api.playRect(W, H);
+      return W >= H ? Math.min(bgPoint(W, H, 'tradgard', 390, 374).y, pr.y + pr.h) : pr.y + pr.h * 0.90;
+    }
+    function standPoints(W, H) {
+      layout(W, H);
+      const gy = groundY(W, H);
+      return {
+        lead: [s.heroPos[0], gy],
+        buddy: [s.buddyPos[0], gy],
+        winLead: [W * 0.42, gy],
+        winBuddy: [W * 0.58, gy],
+        leadFace: 1, buddyFace: -1,
+      };
+    }
+
     return {
       _s: s,
+      groundY,
+      standPoints,
       update(dt, W, H) {
         layout(W, H);
         s.idleT += dt;
@@ -234,8 +256,8 @@ export const level03 = {
         if (s.holdBed && s.holdBed.stage === 1) {
           s.pouringBed = s.holdBed;
           s.canHeld = true;
-          s.canX = lerp(s.canX, s.holdBed.x + 40, Math.min(1, dt * 14));
-          s.canY = lerp(s.canY, s.holdBed.y - 62, Math.min(1, dt * 14));
+          s.canX = lerp(s.canX, s.holdBed.x + 28, Math.min(1, dt * 14));
+          s.canY = lerp(s.canY, s.holdBed.y - 54, Math.min(1, dt * 14));
           s.idleT = 0;
           waterBed(s.holdBed, dt * RATE);
           if (Math.random() < dt * 10) api.particles.burst(s.holdBed.x + (Math.random() - 0.5) * 30, s.holdBed.y - 20, 2, { colors: ['#8fd3ff', '#ffffff'], speed: 30, lift: -20, life: 0.4 });
@@ -246,6 +268,7 @@ export const level03 = {
 
         s.butterfly.x = lerp(s.butterfly.x, s.butterfly.tx, Math.min(1, dt * 3));
         s.butterfly.y = lerp(s.butterfly.y, s.butterfly.ty, Math.min(1, dt * 3));
+        updateHeroStage(s.stage, dt, { won: api.levelWon, pts: standPoints(W, H) });
       },
 
       onDown(x, y, W, H) {
@@ -323,8 +346,24 @@ export const level03 = {
           return;
         }
 
-        playSfx('tap');
-        api.particles.burst(x, y, 6, { colors: ['#fff0a6', '#a8e38a'] });
+        const pr = layout(W, H);
+        if (y < pr.y + pr.h * 0.36) {
+          s.butterfly.tx = clamp(x, pr.x + 40, pr.x + pr.w - 40);
+          s.butterfly.ty = clamp(y, pr.y + 30, pr.y + pr.h * 0.48);
+          playNote(5, 0.25);
+          api.particles.burst(x, y, 8, { kind: 'star', colors: ['#fff3b0', '#bfe8ff'] });
+        } else if (x < pr.x + pr.w * 0.32) {
+          playNote(y < pr.y + pr.h * 0.56 ? 4 : 1, 0.3);
+          playSfx(y < pr.y + pr.h * 0.56 ? 'bird' : 'pling');
+          api.particles.burst(x, y, 8, { colors: ['#ffd97d', '#ffb5cf', '#ffffff'] });
+        } else if (x > pr.x + pr.w * 0.72) {
+          playNote(3, 0.28);
+          playSfx('rustle');
+          api.particles.burst(x, y, 9, { colors: ['#9be296', '#ff9ec4', '#ffe17a'] });
+        } else {
+          playNote(Math.floor((x / Math.max(1, W)) * 6) % 6, 0.24);
+          api.particles.burst(x, y, 7, { colors: ['#fff0a6', '#a8e38a', '#ffb8d9'] });
+        }
       },
 
       onMove(x, y) {
@@ -385,32 +424,22 @@ export const level03 = {
         // Fjäril som besöker blommorna
         blit(ctx, 'butterfly', s.butterfly.x, s.butterfly.y + Math.sin(T * 5) * 6, { h: 46 });
 
-        // Båda systrarna
+        // Vattenkanna (lutar & häller stråle, skalad så den aldrig skymmer Norin!)
+        if (!s.canHeld) { s.canX = lerp(s.canX, s.canHomeX, 0.2); s.canY = lerp(s.canY, s.canHomeY, 0.2); }
+        drawWateringCan(ctx, s.canX, s.canY, s.pouringBed ? -0.45 : -Math.sin(s.canTilt * Math.PI) * 0.5, !!s.pouringBed || s.canTilt > 0.3, T, 0.72);
+
+        // Båda systrarna i förgrunden med balanserad skala
         const leadId = api.sister;
         const buddyId = leadId === 'nila' ? 'norin' : 'nila';
-        const heroScale = Math.min(W, H) < 460 ? 1.0 : 1.14;
-        if (api.won) {
-          const d1 = api.gladjedans(T);
-          const d2 = api.gladjedans(T + 0.5);
-          drawHero(ctx, T, W * 0.43, pr.y + pr.h * 0.62, { ...d1, who: leadId, scale: heroScale, face: 1 });
-          drawHero(ctx, T, W * 0.57, pr.y + pr.h * 0.62, { ...d2, who: buddyId, scale: heroScale, face: -1 });
-        } else {
-          drawHero(ctx, T, s.heroPos[0], s.heroPos[1], {
-            who: leadId, scale: heroScale, expr: s.heroExpr,
-            pose: s.heroJump > 0 ? 'jump' : 'cheer',
-            bob: s.heroJump > 0 ? -Math.sin(s.heroJump * Math.PI) * 26 : 0, face: 1,
-          });
-          drawHero(ctx, T, s.buddyPos[0], s.buddyPos[1], {
-            who: buddyId, scale: heroScale * 0.9,
-            expr: s.buddyJump > 0 ? 'skratt' : 'glad',
-            pose: s.buddyJump > 0 ? 'jump' : 'idle',
-            bob: s.buddyJump > 0 ? -Math.sin(s.buddyJump * Math.PI) * 24 : 0, face: -1,
-          });
+        const heroScale = Math.min(W, H) < 460 ? 1.32 : 1.44;
+        if (!api.levelWon) {
+          s.stage.lead.jump = Math.max(s.stage.lead.jump, s.heroJump);
+          s.stage.buddy.jump = Math.max(s.stage.buddy.jump, s.buddyJump);
         }
-
-        // Vattenkanna (lutar & häller stråle!)
-        if (!s.canHeld) { s.canX = lerp(s.canX, s.canHomeX, 0.2); s.canY = lerp(s.canY, s.canHomeY, 0.2); }
-        drawWateringCan(ctx, s.canX, s.canY, s.pouringBed ? -0.45 : -Math.sin(s.canTilt * Math.PI) * 0.5, !!s.pouringBed || s.canTilt > 0.3, T);
+        drawHeroStage(ctx, T, s.stage, {
+          leadId, buddyId, scale: heroScale, buddyScale: heroScale,
+          won: api.levelWon, leadPose: 'idle', buddyPose: 'idle',
+        });
 
         // Pekhand
         if (!api.won && (s.beds.every((b) => b.stage === 0) || s.idleT > 2.0)) {
